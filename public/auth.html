@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./auth.css">
+</head>
+<body>
+  <main class="auth-wrap">
+
+    <!-- CREATE ACCOUNT -->
+    <section class="card view" data-view="register">
+      <h1>Create an Account</h1>
+      <p class="sub">Have an Account? <a href="#login">Sign In</a></p>
+
+      <form id="formRegister" class="form">
+        <label class="lbl">Email</label>
+        <input class="inp" name="email" type="email" placeholder="Enter Email Address" required />
+
+        <label class="lbl">Password</label>
+        <input class="inp" name="password" type="password" placeholder="Create Password" required />
+
+        <button class="btn primary" type="submit">Create Account</button>
+
+        <p class="fine">
+          By creating account, you agree to our <a href="#">Terms of Service</a>
+        </p>
+
+        <div class="hr"><span>Or create an account using:</span></div>
+
+        <button class="btn ghost" type="button" id="btnGoogle">Continue with Google</button>
+        <button class="btn ghost" type="button" id="btnFacebook">Continue with Facebook</button>
+
+        <p class="error" id="regError"></p>
+      </form>
+    </section>
+
+    <!-- SIGN IN -->
+    <section class="card view hidden" data-view="login">
+      <h1>Sign In</h1>
+      <p class="sub">New to Our Product? <a href="#register">Create an Account</a></p>
+
+      <form id="formLogin" class="form">
+        <label class="lbl">Email</label>
+        <input class="inp" name="email" type="email" placeholder="Enter Email Address" required />
+
+        <label class="lbl">Password</label>
+        <input class="inp" name="password" type="password" placeholder="Enter Password" required />
+
+        <label class="check">
+          <input type="checkbox" id="keepSigned" />
+          <span>Keep me signed in</span>
+        </label>
+
+        <button class="btn primary" type="submit">Sign In</button>
+
+        <a class="link" href="#reset">Forgot your password?</a>
+
+        <div class="hr"><span>Or sign in using:</span></div>
+
+        <button class="btn ghost" type="button">Continue with Google</button>
+        <button class="btn ghost" type="button">Continue with Facebook</button>
+
+        <p class="error" id="loginError"></p>
+      </form>
+    </section>
+
+    <!-- PASSWORD RESET -->
+    <section class="card view hidden" data-view="reset">
+      <h1>Password Reset</h1>
+      <p class="sub">We Will Help You Reset your Password</p>
+
+      <form id="formResetRequest" class="form">
+        <label class="lbl">Email</label>
+        <input class="inp" name="email" type="email" placeholder="Enter Email Address" required />
+
+        <button class="btn primary" type="submit">Reset Password</button>
+
+        <div class="hr"></div>
+
+        <p class="sub">Remembered your Password?</p>
+        <a class="btn ghost linkbtn" href="#login">Back to Sign In</a>
+
+        <p class="error" id="resetError"></p>
+      </form>
+    </section>
+
+    <!-- CONFIRM EMAIL -->
+    <section class="card view hidden" data-view="confirm">
+      <h1>Confirm Email</h1>
+      <p class="sub">Check Your Email and Enter Confirmation Code</p>
+
+      <form id="formConfirm" class="form">
+        <label class="lbl">Confirmation Code</label>
+        <input class="inp" name="code" inputmode="numeric" placeholder="Enter Code" required />
+
+        <button class="btn primary" type="submit">Confirm Email</button>
+
+        <div class="hr"></div>
+
+        <p class="sub">Haven't received your code?</p>
+        <button class="btn ghost" type="button" id="btnResend">Resend Code</button>
+
+        <p class="error" id="confirmError"></p>
+      </form>
+    </section>
+
+    <!-- ALMOST THERE -->
+    <section class="card view hidden" data-view="almost">
+      <div class="icon"><div class="icon-box">✉️</div></div>
+      <h1>Almost There!</h1>
+      <p class="sub">Check your email inbox and confirm your account</p>
+
+      <div class="hr"></div>
+
+      <p class="sub">Didn't receive any mail?</p>
+      <button class="btn ghost" type="button" id="btnResend2">Resend Confirmation</button>
+
+      <a class="btn primary linkbtn" href="#confirm" style="margin-top:10px;">I have the code</a>
+
+      <p class="error" id="almostError"></p>
+    </section>
+
+  </main>
+
+  <script src="./auth.js"></script>
+</body>
+</html>

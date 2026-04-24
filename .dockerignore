@@ -1,0 +1,8 @@
+node_modules
+server/node_modules
+server/.env
+server/data.json
+server/auth.db
+server/prisma/dev.db
+npm-debug.log
+README_MVP.txt

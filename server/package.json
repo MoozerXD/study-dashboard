@@ -1,0 +1,27 @@
+{
+  "name": "study-dashboard-server",
+  "version": "1.0.0",
+  "description": "MVP backend for Study Dashboard",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "email:test": "node scripts/send-test-email.js",
+    "dev": "npm run db:migrate && node index.js",
+    "start": "npm run db:migrate && node index.js"
+  },
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "^7.6.0",
+    "@prisma/client": "^7.6.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.4",
+    "prisma": "^7.6.0"
+  }
+}

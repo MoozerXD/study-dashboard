@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  isEmailVerified Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  emailCodes     EmailVerificationCode[]
+  resetTokens    PasswordResetToken[]
+  subjects       Subject[]
+  goals          Goal[]
+  tasks          Task[]
+  studySessions  StudySession[]
+  aiRequests     AiRequest[]
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Subject {
+  id               String   @id @default(cuid())
+  name             String
+  color            String   @default("#2563eb")
+  targetMinutes    Int      @default(300)
+  description      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  userId           String
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks            Task[]
+  goals            Goal[]
+  studySessions    StudySession[]
+
+  @@index([userId])
+}
+
+model Goal {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  targetDate      DateTime?
+  targetValue     Int      @default(10)
+  progressValue   Int      @default(0)
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  userId          String
+  subjectId       String?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject         Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  status         String   @default("todo")
+  priority       String   @default("medium")
+  dueDate        DateTime?
+  estimatedMins  Int      @default(45)
+  focusScore     Int      @default(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+  userId         String
+  subjectId      String?
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subjectId])
+  @@index([status])
+}
+
+model StudySession {
+  id          String   @id @default(cuid())
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  minutes     Int      @default(0)
+  mood        Int      @default(3)
+  note        String?
+  createdAt   DateTime @default(now())
+  userId      String
+  subjectId   String?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model AiRequest {
+  id         String   @id @default(cuid())
+  prompt     String
+  response   String
+  createdAt  DateTime @default(now())
+  userId     String
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
