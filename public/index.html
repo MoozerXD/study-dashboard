@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Study Dashboard</title>
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <script>
+    try {
+      if (localStorage.getItem("studyTheme") === "light") {
+        document.documentElement.classList.add("light-theme");
+      }
+    } catch {
+      document.documentElement.classList.remove("light-theme");
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -46,6 +56,10 @@
       </nav>
 
       <div class="sidebar-account">
+        <button id="themeToggleMenuBtn" class="btn btn-secondary theme-toggle" type="button" aria-label="Switch to light theme">
+          <span class="theme-icon" aria-hidden="true">☀</span>
+          <span class="theme-label">Light</span>
+        </button>
         <div class="user-badge sidebar-user-badge">
           <span class="user-dot"></span>
           <span id="userEmailMenu">user@example.com</span>
@@ -69,6 +83,10 @@
           </div>
         </div>
         <div class="top-actions">
+          <button id="themeToggleBtn" class="btn btn-secondary theme-toggle" type="button" aria-label="Switch to light theme">
+            <span class="theme-icon" aria-hidden="true">☀</span>
+            <span class="theme-label">Light</span>
+          </button>
           <div class="user-badge">
             <span class="user-dot"></span>
             <span id="userEmail">user@example.com</span>
@@ -204,6 +222,8 @@
             <div class="panel-head">
               <h2>Учебный материал</h2>
             </div>
+
+            <p class="panel-lead">Выберите направление подготовки, чтобы быстро перейти к практике и материалам.</p>
 
             <div class="grid two-col material-topic-grid">
               <button type="button" class="item-card vertical material-topic-card active" data-topic="sat" aria-pressed="true">

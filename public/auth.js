@@ -60,16 +60,21 @@ async function api(path, method = "GET", body = null) {
 }
 
 function route() {
-  const hash = (location.hash || "#register").replace("#", "");
+  const pathView = location.pathname.replace(/^\//, "").replace(/\/$/, "");
+  const pathMap = {
+    login: "login",
+    register: "register",
+    reset: "reset",
+    confirm: "confirm",
+    almost: "almost",
+  };
+  const hash = (location.hash || "").replace("#", "");
   const allowed = ["register", "login", "reset", "confirm", "almost"];
-  show(allowed.includes(hash) ? hash : "register");
+  show(allowed.includes(hash) ? hash : (pathMap[pathView] || "register"));
 }
 
 window.addEventListener("hashchange", route);
 route();
-
-document.getElementById("btnGoogle")?.addEventListener("click", () => alert("OAuth is not connected yet."));
-document.getElementById("btnFacebook")?.addEventListener("click", () => alert("OAuth is not connected yet."));
 
 document.getElementById("formRegister")?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -139,7 +144,7 @@ document.getElementById("formLogin")?.addEventListener("submit", async (event) =
     const result = await api("/api/auth/login", "POST", { email, password });
     saveToken(result.token, keep);
     savePendingEmail(email);
-    window.location.href = "./index.html";
+    window.location.href = "/dashboard";
   } catch (error) {
     setErr("loginError", error.message);
   }

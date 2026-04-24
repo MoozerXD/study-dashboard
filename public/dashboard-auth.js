@@ -6,7 +6,7 @@
   async function checkAuth() {
     const token = getToken();
     if (!token) {
-      window.location.href = "/auth.html#login";
+      window.location.href = "/login";
       return;
     }
 
@@ -21,7 +21,7 @@
     } catch {
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
-      window.location.href = "/auth.html#login";
+      window.location.href = "/login";
     }
   }
 

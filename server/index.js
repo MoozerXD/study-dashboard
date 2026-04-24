@@ -159,7 +159,8 @@ function getPublicAppUrl(req) {
 }
 
 function getAuthUrl(hash, appUrl = APP_URL) {
-  return `${appUrl.replace(/\/$/, "")}/auth.html${hash}`;
+  const view = String(hash || "").replace("#", "").replace(/^\/+/, "") || "login";
+  return `${appUrl.replace(/\/$/, "")}/${view}`;
 }
 
 async function sendMailMessage({ to, subject, text, html }) {
@@ -404,14 +405,35 @@ async function syncLegacyAuthToDatabase() {
   return { migrated: true, users: legacyUsers.length };
 }
 
+const publicDir = path.join(__dirname, "../public");
+const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/goals", "/insights", "/ai", "/materials"];
+const authRoutes = ["/login", "/register", "/reset", "/confirm", "/almost", "/auth"];
+
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, "../public")));
+
+app.get("/index.html", (req, res) => {
+  res.redirect(302, "/dashboard");
+});
+
+app.get("/auth.html", (req, res) => {
+  res.redirect(302, "/login");
+});
+
+app.use(express.static(publicDir));
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/auth.html"));
+  res.sendFile(path.join(publicDir, "auth.html"));
+});
+
+app.get(authRoutes, (req, res) => {
+  res.sendFile(path.join(publicDir, "auth.html"));
+});
+
+app.get(dashboardRoutes, (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
 });
 
 app.get("/api/health", (req, res) => {

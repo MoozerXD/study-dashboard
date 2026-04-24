@@ -64,6 +64,26 @@ function formatTime(value) {
   return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatMonthTitle(dates) {
+  const validDates = dates.filter((date) => date && !Number.isNaN(date.getTime()));
+  if (!validDates.length) return "";
+  const first = validDates[0];
+  const last = validDates.at(-1);
+  const monthName = (date) => date.toLocaleDateString("ru-RU", { month: "long" });
+  const title = first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()
+    ? first.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
+    : first.getFullYear() === last.getFullYear()
+      ? `${monthName(first)} — ${monthName(last)} ${last.getFullYear()}`
+      : `${monthName(first)} ${first.getFullYear()} — ${monthName(last)} ${last.getFullYear()}`;
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+function formatWeekday(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ru-RU", { weekday: "short" }).replace(".", "");
+}
+
 function toDayKey(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
@@ -87,7 +107,7 @@ function escapeHtml(str) {
 }
 
 function isCompactLayout() {
-  return window.matchMedia("(max-width: 1120px)").matches;
+  return window.matchMedia("(max-width: 1180px)").matches;
 }
 
 function setSidebarOpen(open) {
@@ -103,10 +123,59 @@ function setSidebarOpen(open) {
   if (backdrop) backdrop.setAttribute("aria-hidden", String(!active));
 }
 
-function setActiveRoute(route) {
-  document.querySelectorAll(".nav-link").forEach((btn) => btn.classList.toggle("active", btn.dataset.route === route));
+function setTheme(theme) {
+  const normalized = theme === "light" ? "light" : "dark";
+  const isLight = normalized === "light";
+  document.documentElement.classList.toggle("light-theme", isLight);
+  localStorage.setItem("studyTheme", normalized);
+
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    const icon = button.querySelector(".theme-icon");
+    const label = button.querySelector(".theme-label");
+    if (icon) icon.textContent = isLight ? "☾" : "☀";
+    if (label) label.textContent = isLight ? "Dark" : "Light";
+    button.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("studyTheme") === "light" ? "light" : "dark";
+  setTheme(saved);
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = document.documentElement.classList.contains("light-theme") ? "dark" : "light";
+      setTheme(next);
+    });
+  });
+}
+
+const routePaths = {
+  dashboard: "/dashboard",
+  tasks: "/tasks",
+  subjects: "/subjects",
+  goals: "/goals",
+  insights: "/insights",
+  ai: "/ai",
+  materials: "/materials",
+};
+
+function getRouteFromPath() {
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  if (path === "/" || path === "/index.html") return "dashboard";
+  return Object.entries(routePaths).find(([, routePath]) => routePath === path)?.[0] || "dashboard";
+}
+
+function setActiveRoute(route, options = {}) {
+  const nextRoute = routePaths[route] ? route : "dashboard";
+  document.querySelectorAll(".nav-link").forEach((btn) => btn.classList.toggle("active", btn.dataset.route === nextRoute));
   document.querySelectorAll(".route").forEach((el) => el.classList.add("hidden"));
-  document.getElementById(`route-${route}`)?.classList.remove("hidden");
+  document.getElementById(`route-${nextRoute}`)?.classList.remove("hidden");
+  if (options.push !== false) {
+    const nextPath = routePaths[nextRoute];
+    if (nextPath && window.location.pathname !== nextPath) {
+      window.history.pushState({ route: nextRoute }, "", nextPath);
+    }
+  }
   setSidebarOpen(false);
 }
 
@@ -904,7 +973,7 @@ async function handleLogout() {
   try { await api("/api/auth/logout", { method: "POST" }); } catch {}
   localStorage.removeItem("authToken");
   sessionStorage.removeItem("authToken");
-  window.location.href = "/auth.html#login";
+  window.location.href = "/login";
 }
 
 function fillSubjectSelects() {
@@ -1362,11 +1431,23 @@ function renderInsights() {
   if (!a) return;
 
   const heat = document.getElementById("heatmapGrid");
-  heat.innerHTML = a.heatmap.map((cell) => `
+  const heatmapDates = a.heatmap.map((cell) => new Date(cell.date));
+  const weekdayLabels = a.heatmap.slice(0, 7).map((cell) => formatWeekday(cell.date));
+  heat.innerHTML = `
+    <div class="heat-calendar-title">${escapeHtml(formatMonthTitle(heatmapDates))}</div>
+    ${weekdayLabels.map((day) => `<div class="heat-weekday">${escapeHtml(day)}</div>`).join("")}
+    ${a.heatmap.map((cell) => {
+    const date = new Date(cell.date);
+    const dayNumber = Number.isNaN(date.getTime()) ? "" : date.getDate();
+    return `
     <button type="button" class="heat-cell level-${cell.level}" data-date="${cell.date}" aria-pressed="false" title="${formatDate(cell.date, false)} · ${cell.minutes} мин">
+      <span class="heat-date-number">${dayNumber}</span>
+      ${cell.minutes ? `<span class="heat-cell-minutes">${cell.minutes}м</span>` : ""}
       <span class="sr-only">${formatDate(cell.date, false)} · ${cell.minutes} мин</span>
     </button>
-  `).join("");
+    `;
+  }).join("")}
+  `;
   const selectedHeatmapDate = state.selectedHeatmapDate && a.heatmap.some((cell) => cell.date === state.selectedHeatmapDate)
     ? state.selectedHeatmapDate
     : (a.heatmap.slice().reverse().find((cell) => cell.minutes > 0)?.date || a.heatmap.at(-1)?.date || null);
@@ -1499,6 +1580,7 @@ function bindNavigation() {
   document.querySelectorAll(".nav-link").forEach((btn) => {
     btn.addEventListener("click", () => setActiveRoute(btn.dataset.route));
   });
+  window.addEventListener("popstate", () => setActiveRoute(getRouteFromPath(), { push: false }));
 }
 
 function bindForms() {
@@ -1711,8 +1793,13 @@ function bindActions() {
 
 async function init() {
   try {
+    initTheme();
     initSidebarMenu();
     bindNavigation();
+    if (window.location.pathname === "/index.html") {
+      window.history.replaceState({ route: "dashboard" }, "", "/dashboard");
+    }
+    setActiveRoute(getRouteFromPath(), { push: false });
     bindForms();
     bindActions();
     initMaterialTopics();
@@ -1723,7 +1810,7 @@ async function init() {
     if (/not authorized|invalid token/i.test(String(error.message))) {
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
-      window.location.href = "/auth.html#login";
+      window.location.href = "/login";
     }
   }
 }
