@@ -39,6 +39,13 @@ const OPENAI_REASONING_EFFORT = String(process.env.OPENAI_REASONING_EFFORT || "l
 const OPENROUTER_API_KEY = String(process.env.OPENROUTER_API_KEY || "").trim();
 const OPENROUTER_MODEL = String(process.env.OPENROUTER_MODEL || "openai/gpt-4.1-mini").trim();
 const OPENROUTER_FALLBACK_MODELS = String(process.env.OPENROUTER_FALLBACK_MODELS || "openai/gpt-4.1-nano").split(",").map((x) => x.trim()).filter(Boolean);
+const GEMINI_API_KEY = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+const GEMINI_MODEL = String(process.env.GEMINI_MODEL || "gemini-2.5-flash").trim();
+const GEMINI_FALLBACK_MODELS = String(process.env.GEMINI_FALLBACK_MODELS || "").split(",").map((x) => x.trim()).filter(Boolean);
+const AI_MAX_OUTPUT_TOKENS = Math.min(4096, Math.max(900, Number(process.env.AI_MAX_OUTPUT_TOKENS || 2200)));
+const AI_ATTACHMENT_LIMIT = 5;
+const AI_ATTACHMENT_TEXT_LIMIT = 18000;
+const AI_ATTACHMENT_DATA_LIMIT = 8 * 1024 * 1024;
 const DATABASE_URL = String(process.env.DATABASE_URL || "file:./prisma/dev.db").trim();
 const DEFAULT_APP_URL = `http://localhost:${PORT}`;
 const APP_URL = normalizeAppUrl(process.env.APP_URL, DEFAULT_APP_URL);
@@ -406,7 +413,7 @@ async function syncLegacyAuthToDatabase() {
 }
 
 const publicDir = path.join(__dirname, "../public");
-const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/goals", "/insights", "/ai", "/materials"];
+const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/calendar", "/profile", "/goals", "/insights", "/ai", "/materials"];
 const authRoutes = ["/login", "/register", "/reset", "/confirm", "/almost", "/auth"];
 
 const app = express();
@@ -709,7 +716,8 @@ function isSuspiciousLiveReply(prompt, text) {
   const normalizedText = String(text || "").trim().toLowerCase();
   if (!normalizedText) return true;
   if (["cat", "sat", "ielts", "toefl", "gmat", "gre"].some((token) => normalizedPrompt.includes(token))) {
-    if (normalizedText.includes("изображени") || normalizedText.includes("фото") || normalizedText.includes("кот")) {
+    const mentionsAnimalCat = /(^|[^а-яёa-z])кот(а|у|ом|е|ы|ов|ам|ами|ах)?([^а-яёa-z]|$)/i.test(normalizedText);
+    if (normalizedText.includes("изображени") || normalizedText.includes("фото") || mentionsAnimalCat) {
       return true;
     }
   }
@@ -803,7 +811,7 @@ function buildSatQuestionReply(sat) {
 
 function buildAiReply(prompt, context = {}) {
   const text = String(prompt || "").trim();
-  if (!text) return "Сформулируй запрос точнее: предмет, цель, срок, текущий уровень.";
+  if (!text) return "Напиши, что нужно разобрать: тему, предмет или цель. Например: \"объясни интегралы\", \"составь план по физике\" или \"сделай мини-тест\".";
   const lowered = text.toLowerCase();
   const subjectName = context.topSubject?.name || "ключевому предмету";
   const overdue = context.metrics?.overdueTasks || 0;
@@ -812,6 +820,104 @@ function buildAiReply(prompt, context = {}) {
   const weakSubject = context.analytics?.dailyReview?.weakSubject?.name || subjectName;
   const satQuestion = parseSatQuestionPrompt(text);
   if (satQuestion) return buildSatQuestionReply(satQuestion);
+
+  if (/^(привет|салам|здравствуй|здравствуйте|hello|hi|hey)[!.\s]*$/i.test(lowered)) {
+    return [
+      "Привет! Я на месте.",
+      "Могу помочь с учебой: объяснить тему простыми словами, составить план, сделать мини-тест, карточки или разобрать задачу.",
+      `Сейчас в фокусе: ${subjectName}.`,
+      "Напиши тему или нажми быстрый инструмент справа."
+    ].join("\n");
+  }
+
+  if (lowered.includes("интеграл")) {
+    return [
+      "Интеграл простыми словами — это способ сложить много маленьких кусочков в один общий результат.",
+      "",
+      "Главная идея:",
+      "1. Производная отвечает на вопрос: как быстро меняется функция.",
+      "2. Интеграл отвечает на вопрос: сколько всего накопилось.",
+      "",
+      "Картинка в голове: если график показывает скорость, то интеграл показывает пройденный путь. Если график показывает высоту кривой, то определенный интеграл показывает площадь под этой кривой.",
+      "",
+      "Пример:",
+      "Интеграл от 2x равен x^2 + C, потому что производная x^2 снова дает 2x.",
+      "",
+      "Как учить:",
+      "1. Повтори производные.",
+      "2. Выучи базовые формулы интегралов.",
+      "3. Реши 5 простых примеров на обратную производную.",
+      "4. Потом переходи к площадям под графиком."
+    ].join("\n");
+  }
+
+  if (lowered.includes("производн")) {
+    return [
+      "Производная показывает, как быстро меняется функция в конкретной точке.",
+      "Если функция — это путь, то производная — это скорость.",
+      "",
+      "Пример: у функции x^2 производная равна 2x. Значит, чем больше x, тем быстрее растет график.",
+      "",
+      "Мини-план:",
+      "1. Разобрать смысл наклона касательной.",
+      "2. Выучить базовые правила: степень, сумма, произведение.",
+      "3. Решить 10 примеров от простых к сложным."
+    ].join("\n");
+  }
+
+  if (lowered.includes("мини-тест") || lowered.includes("тест")) {
+    return [
+      "Мини-тест на 5 вопросов:",
+      "1. Объясни тему одним предложением.",
+      "2. Назови главную формулу или правило.",
+      "3. Реши один базовый пример без подсказки.",
+      "4. Найди типичную ошибку в решении.",
+      "5. Составь похожую задачу сам.",
+      "",
+      "Если хочешь, напиши конкретную тему, и я сделаю тест уже по ней."
+    ].join("\n");
+  }
+
+  if (lowered.includes("карточ")) {
+    return [
+      "Карточки для повторения:",
+      "1. Термин -> короткое определение.",
+      "2. Формула -> когда применяется.",
+      "3. Тип задачи -> первый шаг решения.",
+      "4. Частая ошибка -> как проверить себя.",
+      "5. Пример -> ответ без полного решения.",
+      "",
+      "Лучший режим: 10 карточек утром, 10 вечером, ошибки переносить на следующий день."
+    ].join("\n");
+  }
+
+  if (lowered.includes("конспект")) {
+    return [
+      "Структура короткого конспекта:",
+      "1. Что это за тема.",
+      "2. Главная идея в 2-3 строках.",
+      "3. Формулы или правила.",
+      "4. Один разобранный пример.",
+      "5. Типичные ошибки.",
+      "6. Что решить для закрепления.",
+      "",
+      "Напиши тему, и я соберу конспект прямо по ней."
+    ].join("\n");
+  }
+
+  if (lowered.includes("эссе") || lowered.includes("essay")) {
+    return [
+      "Для эссе держи простую структуру:",
+      "1. Вступление: перефразируй тему и дай позицию.",
+      "2. Аргумент 1: тезис, объяснение, пример.",
+      "3. Аргумент 2: тезис, объяснение, пример.",
+      "4. Контраргумент, если формат требует.",
+      "5. Вывод: коротко повтори позицию.",
+      "",
+      "Скинь тему эссе, и я помогу собрать план и сильные аргументы."
+    ].join("\n");
+  }
+
   if (lowered.includes("что такое cat") || lowered === "cat") {
     return [
       "CAT чаще всего означает Common Admission Test — экзамен для поступления в бизнес-школы.",
@@ -841,11 +947,17 @@ function buildAiReply(prompt, context = {}) {
     ].join("\n");
   }
   return [
-    `Запрос принят: ${text}.`,
-    `Сильнее всего внимания требует ${subjectName}.`,
-    overdue > 0 ? `Есть ${overdue} просроченных задач. Их надо закрыть или отменить.` : "Критических просрочек нет.",
-    `Серия дней с учёбой: ${streak}.`,
-    "Практический шаг: один 45-минутный блок с конкретным результатом уже сегодня."
+    `Понял запрос: ${text}.`,
+    "Я могу помочь, но мне нужно чуть больше контекста.",
+    "",
+    "Напиши одним сообщением:",
+    "1. Предмет.",
+    "2. Тему.",
+    "3. Что нужно получить: объяснение, план, тест, карточки или решение.",
+    "",
+    `По текущему дашборду главный фокус: ${subjectName}.`,
+    overdue > 0 ? `Еще есть ${overdue} просроченных задач — их лучше разобрать первыми.` : "Критических просрочек нет.",
+    `Серия дней с учебой: ${streak}.`
   ].join("\n");
 }
 
@@ -860,6 +972,172 @@ function normalizeAiHistory(history = []) {
     .slice(-8);
 }
 
+function normalizeAiAttachments(attachments = []) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments.slice(0, AI_ATTACHMENT_LIMIT).map((item) => {
+    const name = String(item?.name || "Файл").trim().slice(0, 160);
+    const type = String(item?.type || "application/octet-stream").trim().toLowerCase();
+    const size = Math.max(0, Number(item?.size || 0));
+    const kind = ["text", "image", "pdf"].includes(item?.kind) ? item.kind : type.startsWith("image/") ? "image" : type === "application/pdf" ? "pdf" : "text";
+    const normalized = { name, type, size, kind };
+    const text = String(item?.text || "").trim();
+    if (text) {
+      normalized.kind = "text";
+      normalized.text = text.length > AI_ATTACHMENT_TEXT_LIMIT
+        ? `${text.slice(0, AI_ATTACHMENT_TEXT_LIMIT)}\n\n[Файл обрезан до ${AI_ATTACHMENT_TEXT_LIMIT} символов]`
+        : text;
+      return normalized;
+    }
+
+    const dataUrl = String(item?.dataUrl || "").trim();
+    const match = dataUrl.match(/^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i);
+    if (!match) return null;
+    const mimeType = String(match[1] || type || "application/octet-stream").toLowerCase();
+    const base64 = String(match[2] || "").replace(/\s+/g, "");
+    const byteLength = Buffer.byteLength(base64, "base64");
+    if (byteLength > AI_ATTACHMENT_DATA_LIMIT) return null;
+    if (!mimeType.startsWith("image/") && mimeType !== "application/pdf") return null;
+    return {
+      ...normalized,
+      kind: mimeType === "application/pdf" ? "pdf" : "image",
+      type: mimeType,
+      size: size || byteLength,
+      dataUrl: `data:${mimeType};base64,${base64}`,
+      base64,
+    };
+  }).filter(Boolean);
+}
+
+function formatAttachmentSize(bytes = 0) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function buildAttachmentTextBlock(attachments = []) {
+  if (!attachments.length) return "";
+  const sections = attachments.map((file, index) => {
+    const header = `Файл ${index + 1}: ${file.name} (${file.type || "unknown"}, ${formatAttachmentSize(file.size)})`;
+    if (file.text) return `${header}\n${file.text}`;
+    return `${header}\nБинарный файл приложен к запросу. Если модель не умеет читать этот тип напрямую, используй имя, тип и размер как контекст.`;
+  });
+  return `\n\nПрикрепленные файлы пользователя:\n${sections.join("\n\n---\n\n")}`;
+}
+
+function buildPromptWithAttachments(prompt, attachments = []) {
+  return `${prompt}${buildAttachmentTextBlock(attachments)}`.trim();
+}
+
+function normalizeLanguage(value) {
+  return String(value || "").toLowerCase() === "en" ? "en" : "ru";
+}
+
+function buildGeminiUserParts(prompt, attachments = []) {
+  const parts = [{ text: buildPromptWithAttachments(prompt, attachments) }];
+  attachments.forEach((file) => {
+    if (file.base64 && (file.type.startsWith("image/") || file.type === "application/pdf")) {
+      parts.push({
+        inlineData: {
+          mimeType: file.type,
+          data: file.base64,
+        },
+      });
+    }
+  });
+  return parts;
+}
+
+function subjectKindFromName(name = "") {
+  const lower = String(name || "").toLowerCase();
+  if (/sat/.test(lower)) return "sat";
+  if (/eng|англ|ielts|toefl|essay|writing|reading/.test(lower)) return "english";
+  if (/phys|физ|mechanic|механ/.test(lower)) return "physics";
+  if (/math|матем|algebra|geometry|calculus|интеграл|производн/.test(lower)) return "math";
+  return "general";
+}
+
+function aiSubjectKindFromText(text = "") {
+  const lower = String(text || "").toLowerCase();
+  if (/sat/.test(lower)) return "sat";
+  if (/essay|english|англ|writing|reading|ielts|toefl/.test(lower)) return "english";
+  if (/phys|физ|mechanic|механ|электр|newton|ньютон/.test(lower)) return "physics";
+  if (/math|матем|algebra|geometry|calculus|интеграл|производн|уравнен/.test(lower)) return "math";
+  return "general";
+}
+
+function pickAiSubject(store, userId, text = "") {
+  const subjects = store.subjects.filter((subject) => subject.userId === userId);
+  const kind = aiSubjectKindFromText(text);
+  return subjects.find((subject) => subjectKindFromName(subject.name) === kind)
+    || subjects.find((subject) => String(text).toLowerCase().includes(String(subject.name || "").toLowerCase()))
+    || subjects[0]
+    || null;
+}
+
+function nextTaskDueDate(index = 0) {
+  const now = new Date();
+  const baseHour = now.getHours() >= 19 ? 9 : Math.max(now.getHours() + 1, 9);
+  const date = new Date(now);
+  if (now.getHours() >= 19) date.setDate(date.getDate() + 1);
+  date.setHours(Math.min(20, baseHour + index * 2), index % 2 ? 30 : 0, 0, 0);
+  return date.toISOString();
+}
+
+function shouldOfferAiTasks(prompt = "", response = "") {
+  const text = `${prompt}\n${response}`.toLowerCase();
+  return /задач|task|todo|to-do|план|распис|schedule|deadline|дедлайн|подготов/.test(text);
+}
+
+function shouldAutoCreateAiTasks(prompt = "") {
+  const text = String(prompt || "").toLowerCase();
+  return /(добав|созд|заплан|постав|сделай|add|create|schedule)/i.test(text)
+    && /(зада|task|todo|to-do|план|распис)/i.test(text);
+}
+
+function buildAiTaskDrafts(prompt, response, store, userId) {
+  if (!shouldOfferAiTasks(prompt, response)) return [];
+  const subject = pickAiSubject(store, userId, `${prompt}\n${response}`);
+  const kind = aiSubjectKindFromText(`${prompt}\n${response}`);
+  const templates = {
+    sat: [
+      ["SAT: диагностический блок", "Пройти короткий timed set и отметить слабые типы вопросов.", 45, "high"],
+      ["SAT: разбор ошибок", "Разобрать ошибки, выписать правила и сделать 5 похожих задач.", 40, "high"],
+      ["SAT: повторение формул", "Повторить формулы и сделать мини-проверку без подсказок.", 30, "medium"],
+    ],
+    english: [
+      ["Английский: план эссе", "Собрать thesis, 2 аргумента и примеры перед написанием.", 35, "high"],
+      ["Английский: черновик", "Написать черновик и проверить структуру абзацев.", 50, "medium"],
+      ["Английский: правка", "Проверить грамматику, связки и финальную версию.", 30, "medium"],
+    ],
+    physics: [
+      ["Физика: разобрать теорию", "Коротко выписать формулы, условия применения и типовые ошибки.", 40, "high"],
+      ["Физика: практика задач", "Решить 6-8 задач по теме и отметить сложные шаги.", 60, "medium"],
+      ["Физика: проверка понимания", "Сделать мини-тест и повторить ошибки.", 30, "medium"],
+    ],
+    math: [
+      ["Математика: разобрать пример", "Разобрать один полный пример с объяснением каждого шага.", 35, "high"],
+      ["Математика: практика", "Решить 8-10 задач от простых к сложным.", 55, "medium"],
+      ["Математика: ошибки и повторение", "Выписать ошибки и повторить нужные формулы.", 30, "medium"],
+    ],
+    general: [
+      ["ИИ-план: уточнить цель", "Сформулировать тему, срок и критерий готовности.", 20, "high"],
+      ["ИИ-план: учебный блок", "Выполнить основной блок работы по плану ассистента.", 50, "medium"],
+      ["ИИ-план: закрепление", "Сделать короткую проверку и записать ошибки.", 25, "medium"],
+    ],
+  };
+
+  return (templates[kind] || templates.general).map(([title, description, estimatedMins, priority], index) => ({
+    title,
+    description,
+    subjectId: subject?.id || null,
+    dueDate: nextTaskDueDate(index),
+    priority,
+    estimatedMins,
+    focusScore: priority === "high" ? 88 : 78,
+  }));
+}
+
 function getAiProviderChain() {
   const chain = [];
   if ((AI_PROVIDER === "auto" || AI_PROVIDER === "openai") && OPENAI_API_KEY) {
@@ -869,6 +1147,14 @@ function getAiProviderChain() {
     chain.push({
       provider: "openrouter",
       models: [OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS]
+        .filter(Boolean)
+        .filter((model, index, list) => list.indexOf(model) === index),
+    });
+  }
+  if ((AI_PROVIDER === "auto" || AI_PROVIDER === "gemini" || AI_PROVIDER === "google") && GEMINI_API_KEY) {
+    chain.push({
+      provider: "gemini",
+      models: [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS]
         .filter(Boolean)
         .filter((model, index, list) => list.indexOf(model) === index),
     });
@@ -898,7 +1184,35 @@ function extractTextFromOpenAiPayload(payload) {
     .trim();
 }
 
-async function callOpenAiForModel(model, prompt, history, context = {}) {
+function extractTextFromGeminiPayload(payload) {
+  const parts = payload?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .map((part) => (typeof part?.text === "string" ? part.text : ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function humanizeAiApiError(reason) {
+  const text = String(reason || "").trim();
+  const lowered = text.toLowerCase();
+  if (lowered.includes("quota") || lowered.includes("billing") || lowered.includes("plan")) {
+    return "У выбранного AI-провайдера закончилась квота или не подключена оплата. Проверь billing у провайдера или настрой другой провайдер в server/.env.";
+  }
+  if (lowered.includes("incorrect api key") || lowered.includes("invalid api key") || lowered.includes("401")) {
+    return "AI API ключ неверный или отключён. Замени ключ выбранного провайдера в server/.env и перезапусти сервер.";
+  }
+  if (lowered.includes("model") && (lowered.includes("not found") || lowered.includes("does not exist"))) {
+    return "Выбранная AI-модель недоступна для этого провайдера. Проверь OPENAI_MODEL, OPENROUTER_MODEL или GEMINI_MODEL в server/.env.";
+  }
+  if (lowered.includes("rate limit") || lowered.includes("429")) {
+    return "Слишком много запросов подряд. Подожди немного и попробуй снова.";
+  }
+  return text || "Неизвестная ошибка AI API.";
+}
+
+async function callOpenAiForModel(model, prompt, history, context = {}, attachments = []) {
   if (!OPENAI_API_KEY) {
     return { ok: false, reason: "missing_api_key", provider: "openai", model };
   }
@@ -907,15 +1221,23 @@ async function callOpenAiForModel(model, prompt, history, context = {}) {
     const reasoningEffort = ["low", "medium", "high"].includes(OPENAI_REASONING_EFFORT)
       ? OPENAI_REASONING_EFFORT
       : "low";
+    const userContent = [{ type: "input_text", text: buildPromptWithAttachments(prompt, attachments) }];
+    attachments.forEach((file) => {
+      if (file.dataUrl && file.type.startsWith("image/")) {
+        userContent.push({ type: "input_image", image_url: file.dataUrl });
+      }
+    });
+
     const body = {
       model,
       instructions: buildAiSystemPrompt(context),
+      max_output_tokens: AI_MAX_OUTPUT_TOKENS,
       input: [
         ...history.map((entry) => ({
           role: entry.role,
           content: [{ type: "input_text", text: entry.content }],
         })),
-        { role: "user", content: [{ type: "input_text", text: prompt }] },
+        { role: "user", content: userContent },
       ],
     };
     if (model.startsWith("gpt-5")) {
@@ -963,12 +1285,18 @@ async function callOpenAiForModel(model, prompt, history, context = {}) {
   }
 }
 
-async function callOpenRouterForModel(model, prompt, history, context = {}) {
+async function callOpenRouterForModel(model, prompt, history, context = {}, attachments = []) {
   if (!OPENROUTER_API_KEY) {
     return { ok: false, reason: "missing_api_key", provider: "openrouter", model };
   }
 
   try {
+    const imageParts = attachments
+      .filter((file) => file.dataUrl && file.type.startsWith("image/"))
+      .map((file) => ({ type: "image_url", image_url: { url: file.dataUrl } }));
+    const userContent = imageParts.length
+      ? [{ type: "text", text: buildPromptWithAttachments(prompt, attachments) }, ...imageParts]
+      : buildPromptWithAttachments(prompt, attachments);
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -982,10 +1310,10 @@ async function callOpenRouterForModel(model, prompt, history, context = {}) {
         messages: [
           { role: "system", content: buildAiSystemPrompt(context) },
           ...history.map((entry) => ({ role: entry.role, content: entry.content })),
-          { role: "user", content: prompt },
+          { role: "user", content: userContent },
         ],
         temperature: 0.4,
-        max_tokens: 700,
+        max_tokens: AI_MAX_OUTPUT_TOKENS,
       }),
     });
 
@@ -1020,47 +1348,151 @@ async function callOpenRouterForModel(model, prompt, history, context = {}) {
   }
 }
 
+async function callGeminiForModel(model, prompt, history, context = {}, attachments = []) {
+  if (!GEMINI_API_KEY) {
+    return { ok: false, reason: "missing_api_key", provider: "gemini", model };
+  }
+
+  try {
+    const normalizedModel = String(model || "").replace(/^models\//, "");
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(normalizedModel)}:generateContent`, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: buildAiSystemPrompt(context) }],
+        },
+        contents: [
+          ...history.map((entry) => ({
+            role: entry.role === "assistant" ? "model" : "user",
+            parts: [{ text: entry.content }],
+          })),
+          {
+            role: "user",
+            parts: buildGeminiUserParts(prompt, attachments),
+          },
+        ],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+        },
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: payload?.error?.message || payload?.message || `HTTP ${response.status}`,
+        provider: "gemini",
+        model,
+        raw: payload,
+      };
+    }
+
+    const normalized = extractTextFromGeminiPayload(payload);
+    if (!normalized) {
+      return { ok: false, reason: payload?.candidates?.[0]?.finishReason || "empty_response", provider: "gemini", model, raw: payload };
+    }
+
+    return { ok: true, provider: "gemini", model: payload?.modelVersion || model, text: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error?.message || "network_error",
+      provider: "gemini",
+      model,
+    };
+  }
+}
+
 function buildAiSystemPrompt(context = {}) {
+  const responseLanguage = normalizeLanguage(context.language) === "en" ? "English" : "Russian";
   const subjectName = context.topSubject?.name || "general study";
   const weakSubject = context.analytics?.dailyReview?.weakSubject?.name || subjectName;
   const streak = context.analytics?.streak || 0;
   const overdue = context.metrics?.overdueTasks || 0;
   const completion = context.metrics?.completionRate || 0;
   const todayBlocks = (context.analytics?.todayPlan?.blocks || []).slice(0, 4).map((b, i) => `${i + 1}. ${b.label} (${b.duration} min)`).join("; ");
+  const subjects = (context.subjects || []).slice(0, 8).map((subject) => `${subject.name} (${subject.progress || 0}%)`).join("; ");
+  const openTasks = (context.openTasks || []).slice(0, 8).map((task, index) => `${index + 1}. ${task.title}${task.subject ? ` [${task.subject}]` : ""}${task.dueDate ? ` due ${task.dueDate}` : ""}`).join("; ");
   return [
     "You are a precise AI study coach inside a student dashboard.",
-    "Write in Russian.",
+    `Write in ${responseLanguage}. Match the dashboard language exactly.`,
     "Be concrete, practical, warm, and honest.",
     "Do not promise impossible outcomes or generic motivation fluff.",
     "Stay inside the study-assistant context unless the user explicitly asks for something else.",
     "Interpret SAT, IELTS, TOEFL, GMAT, GRE, and CAT as exam abbreviations unless the user explicitly asks about an animal, image, or something unrelated to study.",
     "Do not describe images or animals unless the user directly asks about an image or an animal.",
-    "When useful, structure the answer as diagnosis, plan, and next step.",
-    "Prefer short paragraphs and bullets over long walls of text.",
-    "If the user asks for a study plan, return a plan with clear blocks, timing, and a measurable result.",
+    "Give a complete answer by default: explain the idea, then provide concrete steps, examples, and a next action.",
+    "Use short paragraphs and bullets for readability, but do not make the answer overly brief.",
+    "For math, prefer readable plain text and Unicode symbols such as ∫, √, π, ², ₀. Do not wrap formulas in raw LaTeX dollar delimiters like $...$ unless the user explicitly asks for LaTeX.",
+    "If the user asks for a study plan, return a detailed plan with clear blocks, timing, priorities, practice tasks, and measurable results.",
+    "If the user asks for an explanation, include a simple explanation, one worked example, common mistakes, and a quick practice task.",
+    "If the user attaches files, treat them as primary user context. Read their text or visual content carefully and answer about the files when asked.",
+    "Do not ignore short, code-like, or plain-text attachments; they may be the exact content the user wants analyzed.",
+    "You can inspect the current dashboard state from the context below. When the user asks what is happening, summarize actual subjects, open tasks, overdue work, focus, and today's plan.",
+    "When the user asks to add or create tasks, respond with a concise confirmation and a useful task breakdown; the app can turn your plan into real tasks.",
+    "Aim for 6-12 useful bullets or 4-8 short paragraphs unless the user explicitly asks for a short answer.",
     "Use the dashboard context directly: overdue tasks, streak, weak subject, completion rate, and today's plan.",
     `Current top subject: ${subjectName}.`,
     `Weak subject this week: ${weakSubject}.`,
     `Current streak: ${streak}.`,
     `Overdue tasks: ${overdue}.`,
     `Task completion rate: ${completion}%.`,
+    subjects ? `Current subjects: ${subjects}.` : "No user subjects yet.",
+    openTasks ? `Open tasks: ${openTasks}.` : "No open tasks yet.",
     todayBlocks ? `Today's candidate blocks: ${todayBlocks}.` : "No prebuilt blocks for today.",
   ].join(" ");
 }
 
-async function generateAiResponse(prompt, context = {}, history = []) {
+async function generateAiResponse(prompt, context = {}, history = [], attachments = []) {
   const trimmed = String(prompt || "").trim();
-  if (!trimmed) return { text: "Сформулируй запрос точнее: предмет, цель, срок, текущий уровень.", source: "local-fallback", mode: "fallback" };
+  const language = normalizeLanguage(context.language);
+  if (!trimmed) {
+    return {
+      text: language === "en"
+        ? "Make the request more specific: subject, goal, deadline, and current level."
+        : "Сформулируй запрос точнее: предмет, цель, срок, текущий уровень.",
+      source: "local-fallback",
+      mode: "fallback",
+    };
+  }
 
   const normalizedHistory = normalizeAiHistory(history);
+  const normalizedAttachments = normalizeAiAttachments(attachments);
   const providers = getAiProviderChain();
   const tried = [];
+
+  if (!providers.length) {
+    return {
+      text: language === "en"
+        ? [
+          "Live AI API is not connected yet.",
+          "Open server/.env, add the key to OPENAI_API_KEY=, and restart the server.",
+          "After that, answers will be generated by the model instead of local fallback text.",
+        ].join("\n")
+        : [
+          "Живой AI API пока не подключен.",
+          "Открой server/.env, вставь ключ в строку OPENAI_API_KEY= и перезапусти сервер.",
+          "После этого ответы будут генерироваться моделью, а не локальными заготовками.",
+        ].join("\n"),
+      source: "not-configured",
+      mode: "unconfigured",
+      tried,
+    };
+  }
 
   for (const entry of providers) {
     for (const model of entry.models) {
       const external = entry.provider === "openai"
-        ? await callOpenAiForModel(model, trimmed, normalizedHistory, context)
-        : await callOpenRouterForModel(model, trimmed, normalizedHistory, context);
+        ? await callOpenAiForModel(model, trimmed, normalizedHistory, context, normalizedAttachments)
+        : entry.provider === "openrouter"
+          ? await callOpenRouterForModel(model, trimmed, normalizedHistory, context, normalizedAttachments)
+          : await callGeminiForModel(model, trimmed, normalizedHistory, context, normalizedAttachments);
       tried.push({ provider: entry.provider, model, ok: !!external.ok, reason: external.reason || null });
       if (external.ok) {
         if (isSuspiciousLiveReply(trimmed, external.text)) {
@@ -1083,9 +1515,18 @@ async function generateAiResponse(prompt, context = {}, history = []) {
   }
 
   return {
-    text: buildAiReply(trimmed, context),
-    source: tried.length ? `local-fallback:${tried.map((item) => `${item.provider}:${item.model}`).join("|")}` : "local-fallback",
-    mode: "fallback",
+    text: language === "en"
+      ? [
+        "The AI API could not return an answer.",
+        tried.length ? `Checked: ${tried.map((item) => `${item.provider}:${item.model}`).join(", ")}.` : "",
+      ].filter(Boolean).join("\n")
+      : [
+        "AI API не смог вернуть ответ.",
+        humanizeAiApiError(tried.find((item) => item.reason)?.reason),
+        tried.length ? `Проверял: ${tried.map((item) => `${item.provider}:${item.model}`).join(", ")}.` : "",
+      ].filter(Boolean).join("\n"),
+    source: `api-error:${tried.map((item) => `${item.provider}:${item.model}`).join("|")}`,
+    mode: "error",
     tried,
   };
 }
@@ -1097,7 +1538,7 @@ function getAiConfigStatus() {
     index === 0 ? entry.models.slice(1) : entry.models
   ));
   return {
-    provider: active?.provider || (AI_PROVIDER === "openai" || AI_PROVIDER === "openrouter" ? AI_PROVIDER : "local"),
+    provider: active?.provider || (["openai", "openrouter", "gemini", "google"].includes(AI_PROVIDER) ? AI_PROVIDER : "local"),
     configured: providers.length > 0,
     model: active?.models?.[0] || null,
     fallbackModels,
@@ -1574,12 +2015,14 @@ app.get("/api/ai-status", authMiddleware, safe(async (req, res) => {
   const status = getAiConfigStatus();
   res.json({
     ...status,
-    mode: status.configured ? "live-available" : "fallback-only",
+    mode: status.configured ? "live-available" : "setup-required",
     note: status.configured
       ? status.provider === "openai"
         ? "Connected to OpenAI Responses API. The study coach now uses a real chat model, includes dashboard context in each reply, and can fall back to the next provider if it is configured."
-        : "OpenRouter is connected. The server will try the main model and then fallback models before switching to the local mentor."
-      : "No external AI key configured. The app uses the built-in local mentor.",
+        : status.provider === "gemini"
+          ? "Gemini is connected. The study coach now uses a real chat model and can fall back to the next provider if it is configured."
+          : "OpenRouter is connected. The server will try the main model and then fallback models before switching to the local mentor."
+      : "No external AI key configured. Add OPENAI_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY to enable generated model replies.",
   });
 }));
 
@@ -1587,6 +2030,7 @@ app.get("/api/ai-status", authMiddleware, safe(async (req, res) => {
 app.get("/api/ai-plan", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
   const prompt = String(req.query?.prompt || "").trim();
+  const language = normalizeLanguage(req.query?.language);
   if (!prompt) {
     return res.json({
       ok: true,
@@ -1595,23 +2039,34 @@ app.get("/api/ai-plan", authMiddleware, safe(async (req, res) => {
     });
   }
   const { tasks } = getUserData(store, req.userId);
+  const subjectBreakdown = getSubjectBreakdown(store, req.userId);
   const analytics = {
     streak: getStreak(store.studySessions.filter((x) => x.userId === req.userId)),
     dailyReview: buildDailyReview(store, req.userId),
     todayPlan: buildTodayPlan(store, req.userId),
   };
-  const topSubject = getSubjectBreakdown(store, req.userId)[0] || null;
+  const topSubject = subjectBreakdown[0] || null;
   const metrics = {
     overdueTasks: tasks.filter((t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < startOfToday()).length,
     completionRate: tasks.length ? Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100) : 0,
   };
-  const aiResult = await generateAiResponse(prompt, { topSubject, metrics, analytics }, []);
+  const openTasks = tasks
+    .filter((task) => task.status !== "done")
+    .sort((a, b) => new Date(a.dueDate || "2999-01-01") - new Date(b.dueDate || "2999-01-01"))
+    .slice(0, 8)
+    .map((task) => ({ title: task.title, subject: store.subjects.find((subject) => subject.id === task.subjectId)?.name || null, dueDate: task.dueDate || null }));
+  const aiResult = await generateAiResponse(prompt, { topSubject, metrics, analytics, subjects: subjectBreakdown, openTasks, language }, []);
+  const taskDrafts = buildAiTaskDrafts(prompt, aiResult.text, store, req.userId);
   const payload = {
     prompt,
     response: aiResult.text,
     aiSource: aiResult.source,
     aiMode: aiResult.mode,
     tried: aiResult.tried || [],
+    actions: {
+      taskDrafts,
+      autoCreateTasks: false,
+    },
     createdAt: nowIso(),
     via: "get",
   };
@@ -1620,28 +2075,48 @@ app.get("/api/ai-plan", authMiddleware, safe(async (req, res) => {
 
 app.post("/api/ai-plan", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
-  const prompt = String(req.body?.prompt || req.body?.goal || "").trim();
+  const attachments = normalizeAiAttachments(req.body?.attachments || []);
+  const language = normalizeLanguage(req.body?.language);
+  const prompt = String(req.body?.prompt || req.body?.goal || (attachments.length ? (language === "en" ? "Analyze the attached files" : "Проанализируй прикрепленные файлы") : "")).trim();
   if (!prompt) return res.status(400).json({ error: "Prompt required" });
   const history = normalizeAiHistory(req.body?.history || []);
   const { tasks } = getUserData(store, req.userId);
+  const subjectBreakdown = getSubjectBreakdown(store, req.userId);
   const analytics = {
     streak: getStreak(store.studySessions.filter((x) => x.userId === req.userId)),
     dailyReview: buildDailyReview(store, req.userId),
     todayPlan: buildTodayPlan(store, req.userId),
   };
-  const topSubject = getSubjectBreakdown(store, req.userId)[0] || null;
+  const topSubject = subjectBreakdown[0] || null;
   const metrics = {
     overdueTasks: tasks.filter((t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < startOfToday()).length,
     completionRate: tasks.length ? Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100) : 0,
   };
-  const aiResult = await generateAiResponse(prompt, { topSubject, metrics, analytics }, history);
+  const openTasks = tasks
+    .filter((task) => task.status !== "done")
+    .sort((a, b) => new Date(a.dueDate || "2999-01-01") - new Date(b.dueDate || "2999-01-01"))
+    .slice(0, 8)
+    .map((task) => ({ title: task.title, subject: store.subjects.find((subject) => subject.id === task.subjectId)?.name || null, dueDate: task.dueDate || null }));
+  const aiResult = await generateAiResponse(prompt, { topSubject, metrics, analytics, subjects: subjectBreakdown, openTasks, language }, history, attachments);
+  const taskDrafts = buildAiTaskDrafts(prompt, aiResult.text, store, req.userId);
+  const actions = {
+    taskDrafts,
+    autoCreateTasks: shouldAutoCreateAiTasks(prompt) && taskDrafts.length > 0,
+  };
   const record = {
     id: uid(),
     userId: req.userId,
     prompt,
+    attachments: attachments.map((file) => ({
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      kind: file.kind,
+    })),
     response: aiResult.text,
     aiSource: aiResult.source,
     aiMode: aiResult.mode,
+    actions,
     tried: aiResult.tried || [],
     createdAt: nowIso()
   };

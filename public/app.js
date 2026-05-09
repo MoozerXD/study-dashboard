@@ -3,7 +3,6 @@ const state = {
   subjects: [],
   tasks: [],
   goals: [],
-  materials: [],
   sessions: [],
   dashboard: null,
   focus: null,
@@ -11,8 +10,294 @@ const state = {
   aiHistory: [],
   aiStatus: null,
   aiConversation: [],
+  aiAttachments: [],
+  aiPendingTaskDrafts: [],
   aiBusy: false,
-  selectedHeatmapDate: null,
+  taskFilter: "all",
+  demoTasks: null,
+  selectedSubjectId: null,
+  calendarCursor: new Date(),
+  calendarMode: "month",
+  calendarSideView: "day",
+  selectedDay: null,
+  subjectTab: "tests",
+  query: "",
+  searchResults: [],
+  activeSearchIndex: 0,
+  confirmResolve: null,
+  notificationsOpen: false,
+};
+
+const AI_ATTACHMENT_LIMIT = 5;
+const AI_ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024;
+const AI_ATTACHMENT_TEXT_LIMIT = 18000;
+const AI_ATTACHMENT_TEXT_EXTENSIONS = /\.(txt|md|csv|json|js|ts|tsx|jsx|html|css|scss|xml|yml|yaml|log|rtf)$/i;
+const LANG_KEY = "studyLanguage";
+const EN_TEXT = {
+  "Дашборд": "Dashboard",
+  "Задачи": "Tasks",
+  "Предметы": "Subjects",
+  "Календарь": "Calendar",
+  "ИИ-помощник": "AI assistant",
+  "Профиль": "Profile",
+  "Тёмная": "Dark",
+  "Светлая": "Light",
+  "Поиск по задачам, предметам и материалам...": "Search tasks, subjects, and materials...",
+  "Уведомления": "Notifications",
+  "Выйти": "Sign out",
+  "Студент": "Student",
+  "Школьник": "School student",
+  "Абитуриент": "Applicant",
+  "Самообучение": "Self-study",
+  "Аккаунт активен": "Account active",
+  "Учись с": "Study with",
+  "ИИ": "AI",
+  "проще и эффективнее": "more simply and effectively",
+  "Планируй, выполняй задачи и получай персональные рекомендации для уверенного прогресса каждый день.": "Plan, finish tasks, and get personal recommendations for steady progress every day.",
+  "Создать задачу": "Create task",
+  "Открыть ИИ-помощника": "Open AI assistant",
+  "Сегодня": "Today",
+  "Все задачи": "All tasks",
+  "ИИ-план на день": "AI day plan",
+  "Смотреть полный план": "View full plan",
+  "Прогресс по предметам": "Subject progress",
+  "Все предметы": "All subjects",
+  "Личные данные": "Personal data",
+  "Аватар": "Avatar",
+  "Загрузи картинку профиля или оставь стандартный аватар.": "Upload a profile image or keep the default avatar.",
+  "Выбрать фото": "Choose photo",
+  "Убрать": "Remove",
+  "Имя в профиле": "Profile name",
+  "Email": "Email",
+  "Роль": "Role",
+  "Сохранить профиль": "Save profile",
+  "Учебная статистика": "Study statistics",
+  "Быстрые действия": "Quick actions",
+  "Новая задача": "New task",
+  "Добавить учебный блок": "Add a study block",
+  "Посмотреть расписание": "View schedule",
+  "Тема": "Theme",
+  "Переключить оформление": "Switch appearance",
+  "Обзор дня": "Day review",
+  "Спросить ИИ о прогрессе": "Ask AI about progress",
+  "Мои задачи": "My tasks",
+  "Твой умный помощник для учебы, планирования и объяснения тем.": "Your smart assistant for studying, planning, and explaining topics.",
+  "Составить план": "Make a plan",
+  "Объяснить тему": "Explain topic",
+  "Создать задачи": "Create tasks",
+  "Привет, Дулат! 👋": "Hi, Dulat! 👋",
+  "Я помогу тебе разобраться в теме, составить план занятий и превратить цели в конкретные задачи.": "I will help you understand topics, plan study sessions, and turn goals into concrete tasks.",
+  "Объясни интегралы простыми словами": "Explain integrals in simple words",
+  "Составь план подготовки к SAT": "Make a SAT prep plan",
+  "Помоги с эссе по английскому": "Help with an English essay",
+  "Разбей тему по физике на 5 шагов": "Break a physics topic into 5 steps",
+  "Напиши запрос...": "Write a request...",
+  "Прикрепить файл": "Attach file",
+  "Отправить": "Send",
+  "Что умеет ассистент": "Assistant capabilities",
+  "Быстрые инструменты": "Quick tools",
+  "Мини-тест": "Mini test",
+  "Карточки": "Flashcards",
+  "Конспект": "Notes",
+  "План недели": "Week plan",
+  "Планируй занятия, дедлайны и фокус-сессии на неделю и месяц.": "Plan lessons, deadlines, and focus sessions for the week and month.",
+  "ИИ-рекомендации": "AI recommendations",
+  "Управляй учебными задачами, дедлайнами и приоритетами без перегруза.": "Manage study tasks, deadlines, and priorities without overload.",
+  "Фокус на сегодня": "Focus for today",
+  "Смотреть день в календаре": "View day in calendar",
+  "Следи за прогрессом по предметам, материалам и тестам.": "Track progress by subjects, materials, and tests.",
+  "Материалы": "Materials",
+  "Тесты": "Tests",
+  "Прогресс": "Progress",
+  "Добавить предмет": "Add subject",
+  "Изменить": "Edit",
+  "Удалить": "Delete",
+  "Смотреть все тесты": "View all tests",
+  "Лёгкий": "Easy",
+  "Средний": "Medium",
+  "Сложный": "Hard",
+  "Нет данных": "No data",
+  "Нет задач": "No tasks",
+  "Задач в работе": "Active tasks",
+  "Выполнено": "Done",
+  "Предметов": "Subjects",
+  "Фокус": "Focus",
+  "Сохранить изменения": "Save changes",
+  "Добавить задачи": "Add tasks",
+  "Открыть календарь": "Open calendar",
+  "Открыть задачи": "Open tasks",
+  "Могу сразу превратить это в задачи.": "I can turn this into tasks now.",
+  "Добавлю учебные блоки на сегодня и обновлю дашборд.": "I will add study blocks for today and update the dashboard.",
+  "ИИ-задачи добавлены": "AI tasks added",
+  "ИИ-задачи уже добавлены": "AI tasks are already added",
+  "Live AI ответил": "Live AI replied",
+  "AI API недоступен": "AI API is unavailable",
+  "Добавь OPENAI_API_KEY": "Add OPENAI_API_KEY",
+  "Предмет добавлен": "Subject added",
+  "Предмет обновлен": "Subject updated",
+  "Предмет удален": "Subject deleted",
+  "Задача добавлена": "Task added",
+  "Задача обновлена": "Task updated",
+  "Задача удалена": "Task deleted",
+  "Профиль обновлен": "Profile updated",
+  "Закрыть меню": "Close menu",
+  "Главная навигация": "Main navigation",
+  "Открыть меню": "Open menu",
+  "Результаты поиска": "Search results",
+  ", проще и эффективнее": ", more simply and effectively",
+  "Отличный фокус": "Great focus",
+  "На этой неделе": "This week",
+  "Дополнительно": "More options",
+  "Как тебя показывать в интерфейсе": "How to show your name in the interface",
+  "Темная тема": "Dark theme",
+  "Светлая тема": "Light theme",
+  "Составь план подготовки на сегодня": "Make a prep plan for today",
+  "Объясни тему простыми словами": "Explain a topic in simple words",
+  "Объясняет темы простыми словами": "Explains topics in simple words",
+  "Помогает составлять планы и расписание": "Helps create plans and schedules",
+  "Создает тесты и проверочные задания": "Creates tests and practice tasks",
+  "Генерирует задачи и примеры": "Generates tasks and examples",
+  "Контекст обучения": "Learning context",
+  "Объясни интегралы простыми словами": "Explain integrals in simple words",
+  "Составь план подготовки к SAT": "Make a SAT prep plan",
+  "Помоги с эссе по английскому": "Help with an English essay",
+  "Разбей тему по физике на 5 шагов": "Break a physics topic into 5 steps",
+  "Создай мини-тест по моей слабой теме": "Create a mini test for my weak topic",
+  "Сделай карточки для повторения": "Make flashcards for review",
+  "Собери короткий конспект": "Make a short summary",
+  "Составь план недели": "Make a weekly plan",
+  "День": "Day",
+  "Неделя": "Week",
+  "Месяц": "Month",
+  "Добавить событие": "Add event",
+  "Предыдущий месяц": "Previous month",
+  "Следующий месяц": "Next month",
+  "Расписание дня": "Day schedule",
+  "Переключить расписание": "Switch schedule",
+  "Показать расписание дня": "Show day schedule",
+  "Показать план недели": "Show week plan",
+  "Смотреть полный день": "View full day",
+  "Все": "All",
+  "Важные": "Important",
+  "Мои задачи": "My tasks",
+  "Обзор задач": "Task overview",
+  "Сфокусируйся на важном": "Focus on what matters",
+  "Рекомендуем сначала закрыть задачи с высоким приоритетом, а затем перейти к повторению.": "Start with high-priority tasks, then move to review.",
+  "Математика": "Mathematics",
+  "Новая задача": "New task",
+  "Название задачи": "Task title",
+  "Без предмета": "No subject",
+  "Высокий": "High",
+  "Низкий": "Low",
+  "Минуты": "Minutes",
+  "Описание": "Description",
+  "Добавить задачу": "Add task",
+  "Новый предмет": "New subject",
+  "Название предмета": "Subject name",
+  "Цвет предмета": "Subject color",
+  "Минут в неделю": "Minutes per week",
+  "Подтвердить действие": "Confirm action",
+  "Вы уверены?": "Are you sure?",
+  "Отмена": "Cancel",
+  "Проанализируй прикрепленные файлы": "Analyze the attached files",
+  "ИИ анализирует запрос и учебный контекст": "AI is analyzing the request and study context",
+  "Готово, я собрал ответ по твоему запросу.": "Done, I prepared an answer for your request.",
+  "Готово, я добавил задачи и обновил список.": "Done, I added the tasks and refreshed the list.",
+  "Запрос к AI API не прошёл. Проверь сервер, OPENAI_API_KEY и настройки модели, затем попробуй снова.": "The AI API request failed. Check the server, OPENAI_API_KEY, and model settings, then try again.",
+  "Создано ИИ-помощником из текущего учебного контекста.": "Created by the AI assistant from the current study context.",
+  "Создано ИИ-помощником из учебного плана.": "Created by the AI assistant from the study plan.",
+  "без срока": "no due date",
+  "Учеба": "Study",
+  "Фокус-сессия": "Focus session",
+  "пусто": "empty",
+  "скоро": "soon",
+  "В работе": "In progress",
+  "Всего": "Total",
+  "Просрочено": "Overdue",
+  "Практика": "Practice",
+  "Сборник заданий": "Workbook",
+  "Упражнения для закрепления темы": "Exercises to reinforce the topic",
+  "Сбалансируй нагрузку": "Balance your workload",
+  "Во второй половине недели добавь короткую фокус-сессию для восстановления.": "In the second half of the week, add a short focus session to recover.",
+  "Подготовься к дедлайнам": "Prepare for deadlines",
+  "У тебя есть задачи на ближайшие дни. Начни подготовку заранее.": "You have tasks in the next few days. Start preparing early.",
+  "Оптимальное время": "Optimal time",
+  "Твой пик продуктивности: 10:00 - 13:00. Планируй сложные блоки туда.": "Your productivity peak is 10:00 - 13:00. Put harder blocks there.",
+  "План недели": "Week plan",
+  "Расписание дня": "Day schedule",
+  "ИИ-план: глубокая работа по математике": "AI plan: deep math work",
+  "ИИ-план: практика по физике": "AI plan: physics practice",
+  "ИИ-план: повторение английского": "AI plan: English review",
+  "Математика - уравнения и неравенства": "Mathematics - equations and inequalities",
+  "Физика - механика, законы Ньютона": "Physics - mechanics, Newton's laws",
+  "Практика - задачи по математике": "Practice - math problems",
+  "Физика - задачи на движение": "Physics - motion problems",
+  "Конечно! Вот оптимальный план на сегодня:": "Sure! Here is an optimal plan for today:",
+  "Да, добавь, пожалуйста": "Yes, please add it",
+  "Готово! Я добавил задачи и полезные материалы к каждому блоку плана.": "Done! I added tasks and useful materials to each plan block.",
+};
+const RU_TEXT = Object.fromEntries(Object.entries(EN_TEXT).map(([ru, en]) => [en, ru]));
+
+function dateAt(offsetDays, hour, minute = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+}
+
+const demoSubjects = [
+  { id: "demo-math", name: "Математика", color: "#4f8cff", targetMinutes: 420, progress: 78, note: "На пути к цели!" },
+  { id: "demo-physics", name: "Физика", color: "#4fd8c2", targetMinutes: 300, progress: 62, note: "Хороший прогресс" },
+  { id: "demo-english", name: "Английский язык", color: "#9b63ff", targetMinutes: 360, progress: 85, note: "Отличные результаты!" },
+  { id: "demo-sat", name: "SAT", color: "#ff9d43", targetMinutes: 300, progress: 71, note: "Продолжай в том же духе" },
+];
+
+const demoTasks = [
+  { id: "demo-task-1", subjectId: "demo-math", title: "Решить задачи по производной", status: "todo", priority: "high", dueDate: dateAt(0, 10, 0), estimatedMins: 90, focusScore: 86, description: "" },
+  { id: "demo-task-2", subjectId: "demo-physics", title: "Подготовиться к лабораторной работе", status: "todo", priority: "high", dueDate: dateAt(0, 14, 30), estimatedMins: 80, focusScore: 78, description: "" },
+  { id: "demo-task-3", subjectId: "demo-english", title: "Написать эссе на тему Technology", status: "todo", priority: "medium", dueDate: dateAt(1, 11, 0), estimatedMins: 55, focusScore: 65, description: "" },
+  { id: "demo-task-4", subjectId: "demo-physics", title: "Прочитать главу 4: Электромагнетизм", status: "todo", priority: "low", dueDate: dateAt(2, 16, 0), estimatedMins: 45, focusScore: 58, description: "" },
+  { id: "demo-task-5", subjectId: "demo-sat", title: "Подготовка к SAT: Math Practice Test", status: "todo", priority: "medium", dueDate: dateAt(4, 15, 0), estimatedMins: 75, focusScore: 74, description: "" },
+  { id: "demo-task-6", subjectId: "demo-english", title: "Выучить новые слова Unit 5", status: "done", priority: "low", dueDate: dateAt(-1, 9, 0), estimatedMins: 30, focusScore: 52, description: "" },
+];
+
+const DEMO_TASKS_KEY = "aiStudyDemoTasks";
+
+const demoSessions = [
+  { id: "demo-session-1", subjectId: "demo-math", startedAt: dateAt(0, 10, 0), endedAt: dateAt(0, 11, 30), minutes: 90, mood: 4 },
+  { id: "demo-session-2", subjectId: "demo-physics", startedAt: dateAt(0, 12, 0), endedAt: dateAt(0, 13, 30), minutes: 90, mood: 4 },
+  { id: "demo-session-3", subjectId: "demo-english", startedAt: dateAt(0, 14, 0), endedAt: dateAt(0, 15, 30), minutes: 90, mood: 5 },
+];
+
+const subjectIcons = {
+  math: "i-target",
+  physics: "i-flask",
+  english: "i-book",
+  sat: "i-spark",
+};
+
+const testTemplates = {
+  math: [
+    ["Квадратные уравнения", "Средний", "20 вопросов", 87],
+    ["Производные", "Сложный", "25 вопросов", 72],
+    ["Геометрия", "Средний", "15 вопросов", null],
+    ["Мини-тест по формулам", "Лёгкий", "10 вопросов", 95],
+  ],
+  physics: [
+    ["Механика: законы Ньютона", "Средний", "18 вопросов", 74],
+    ["Электромагнетизм", "Сложный", "22 вопроса", 61],
+    ["Лабораторные формулы", "Лёгкий", "12 вопросов", 91],
+  ],
+  english: [
+    ["Academic Writing", "Сложный", "20 вопросов", 85],
+    ["Reading Practice", "Средний", "18 вопросов", 88],
+    ["Vocabulary Sprint", "Лёгкий", "30 слов", 96],
+  ],
+  sat: [
+    ["SAT Math: No Calculator", "Сложный", "20 вопросов", 71],
+    ["Reading and Writing", "Средний", "24 вопроса", 78],
+    ["Timed Practice", "Сложный", "35 минут", null],
+  ],
 };
 
 function getToken() {
@@ -38,935 +323,1791 @@ async function api(path, options = {}) {
 function toast(text) {
   const el = document.getElementById("toast");
   if (!el) return;
-  el.textContent = text;
+  el.textContent = translateValue(text);
   el.classList.add("show");
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
-function formatDate(value, withTime = true) {
-  if (!value) return "без срока";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "без срока";
-  return d.toLocaleString("ru-RU", withTime ? {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  } : {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
-function formatTime(value) {
-  const d = new Date(value);
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatMonthTitle(dates) {
-  const validDates = dates.filter((date) => date && !Number.isNaN(date.getTime()));
-  if (!validDates.length) return "";
-  const first = validDates[0];
-  const last = validDates.at(-1);
-  const monthName = (date) => date.toLocaleDateString("ru-RU", { month: "long" });
-  const title = first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()
-    ? first.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
-    : first.getFullYear() === last.getFullYear()
-      ? `${monthName(first)} — ${monthName(last)} ${last.getFullYear()}`
-      : `${monthName(first)} ${first.getFullYear()} — ${monthName(last)} ${last.getFullYear()}`;
-  return title.charAt(0).toUpperCase() + title.slice(1);
-}
-
-function formatWeekday(value) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("ru-RU", { weekday: "short" }).replace(".", "");
-}
-
-function toDayKey(value) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function setHeatmapModalOpen(open) {
-  const modal = document.getElementById("heatmapModal");
-  if (!modal) return;
-  modal.classList.toggle("show", open);
-  modal.setAttribute("aria-hidden", String(!open));
-  document.body.classList.toggle("heatmap-modal-open", open);
-}
-
-function escapeHtml(str) {
-  return String(str || "")
+function escapeHtml(value) {
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
 
-function isCompactLayout() {
-  return window.matchMedia("(max-width: 1180px)").matches;
+function currentLanguage() {
+  return localStorage.getItem(LANG_KEY) === "en" ? "en" : "ru";
 }
 
-function setSidebarOpen(open) {
-  const sidebar = document.getElementById("sidebar");
-  const toggle = document.getElementById("sidebarToggleBtn");
-  const backdrop = document.getElementById("sidebarBackdrop");
-  if (!sidebar) return;
-
-  const active = isCompactLayout() && open;
-  document.body.classList.toggle("menu-open", active);
-  sidebar.setAttribute("aria-hidden", isCompactLayout() ? String(!active) : "false");
-  if (toggle) toggle.setAttribute("aria-expanded", String(active));
-  if (backdrop) backdrop.setAttribute("aria-hidden", String(!active));
+function currentLocale() {
+  return currentLanguage() === "en" ? "en-US" : "ru-RU";
 }
 
-function setTheme(theme) {
-  const normalized = theme === "light" ? "light" : "dark";
-  const isLight = normalized === "light";
-  document.documentElement.classList.toggle("light-theme", isLight);
-  localStorage.setItem("studyTheme", normalized);
+function translateValue(value, targetLang = currentLanguage()) {
+  const source = String(value ?? "");
+  if (!source.trim()) return source;
+  const leading = source.match(/^\s*/)?.[0] || "";
+  const trailing = source.match(/\s*$/)?.[0] || "";
+  const text = source.trim();
+  const dictionary = targetLang === "en" ? EN_TEXT : RU_TEXT;
+  if (dictionary[text]) return `${leading}${dictionary[text]}${trailing}`;
 
-  document.querySelectorAll(".theme-toggle").forEach((button) => {
-    const icon = button.querySelector(".theme-icon");
-    const label = button.querySelector(".theme-label");
-    if (icon) icon.textContent = isLight ? "☾" : "☀";
-    if (label) label.textContent = isLight ? "Dark" : "Light";
-    button.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  if (targetLang === "en") {
+    return `${leading}${text
+      .replace(/^(\d+)\s+на сегодня$/i, "$1 today")
+      .replace(/^Прогресс\s+(\d+)%$/i, "Progress $1%")
+      .replace(/^Фокус\s+(\d+)%$/i, "Focus $1%")
+      .replace(/^(\d+)\s+активн\.(?:\s+·\s+(\d+)\s+готово)?$/i, (_, active, done) => done ? `${active} active · ${done} done` : `${active} active`)
+      .replace(/^\+\s+ещё\s+(\d+)$/i, "+ $1 more")}${trailing}`;
+  }
+
+  return `${leading}${text
+    .replace(/^(\d+)\s+today$/i, "$1 на сегодня")
+    .replace(/^Progress\s+(\d+)%$/i, "Прогресс $1%")
+    .replace(/^Focus\s+(\d+)%$/i, "Фокус $1%")
+    .replace(/^(\d+)\s+active(?:\s+·\s+(\d+)\s+done)?$/i, (_, active, done) => done ? `${active} активн. · ${done} готово` : `${active} активн.`)
+    .replace(/^\+\s+(\d+)\s+more$/i, "+ ещё $1")}${trailing}`;
+}
+
+function updateLanguageToggle() {
+  const lang = currentLanguage();
+  document.documentElement.lang = lang;
+  document.getElementById("languageToggleBtn")?.setAttribute("aria-label", lang === "en" ? "Switch language" : "Сменить язык");
+  document.querySelectorAll(".language-label").forEach((label) => {
+    label.textContent = lang.toUpperCase();
   });
 }
 
-function initTheme() {
-  const saved = localStorage.getItem("studyTheme") === "light" ? "light" : "dark";
-  setTheme(saved);
-  document.querySelectorAll(".theme-toggle").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = document.documentElement.classList.contains("light-theme") ? "dark" : "light";
-      setTheme(next);
+function applyLanguage() {
+  if (!document.body) return;
+  const lang = currentLanguage();
+  updateLanguageToggle();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("script,style,textarea")) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    node.nodeValue = translateValue(node.nodeValue, lang);
+  });
+
+  document.querySelectorAll("[placeholder],[aria-label],[title],[data-prompt]").forEach((element) => {
+    ["placeholder", "aria-label", "title", "data-prompt"].forEach((attr) => {
+      if (element.hasAttribute(attr)) {
+        element.setAttribute(attr, translateValue(element.getAttribute(attr), lang));
+      }
     });
   });
 }
 
-const routePaths = {
-  dashboard: "/dashboard",
-  tasks: "/tasks",
-  subjects: "/subjects",
-  goals: "/goals",
-  insights: "/insights",
-  ai: "/ai",
-  materials: "/materials",
+function setLanguage(lang) {
+  localStorage.setItem(LANG_KEY, lang === "en" ? "en" : "ru");
+  if (state.me) renderAll();
+  else applyLanguage();
+}
+
+function formatBytes(bytes = 0) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
+  return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} МБ`;
+}
+
+function isTextAttachment(file) {
+  const type = String(file?.type || "").toLowerCase();
+  return type.startsWith("text/")
+    || ["application/json", "application/javascript", "application/xml", "text/markdown"].includes(type)
+    || AI_ATTACHMENT_TEXT_EXTENSIONS.test(file?.name || "");
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.addEventListener("error", () => reject(new Error("Не удалось прочитать файл")));
+    reader.readAsDataURL(file);
+  });
+}
+
+function extensionFromMime(type = "") {
+  if (type === "image/jpeg") return "jpg";
+  if (type === "image/png") return "png";
+  if (type === "image/webp") return "webp";
+  if (type === "image/gif") return "gif";
+  if (type === "application/pdf") return "pdf";
+  return "file";
+}
+
+function nameClipboardFile(file, index = 0) {
+  if (!file) return null;
+  const hasUsefulName = file.name && !/^image\.(png|jpg|jpeg|webp|gif)$/i.test(file.name);
+  if (hasUsefulName) return file;
+  const ext = extensionFromMime(file.type || "image/png");
+  return new File([file], `Вставленное изображение ${index + 1}.${ext}`, { type: file.type || "image/png" });
+}
+
+function filesFromPasteEvent(event) {
+  const items = Array.from(event.clipboardData?.items || []);
+  return items
+    .filter((item) => item.kind === "file")
+    .map((item, index) => nameClipboardFile(item.getAsFile(), index))
+    .filter(Boolean);
+}
+
+async function handleAiPaste(event) {
+  if (state.aiBusy) return;
+  const files = filesFromPasteEvent(event);
+  if (!files.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  await addAiFiles(files);
+}
+
+function attachmentIcon(kind) {
+  if (kind === "image") return "i-spark";
+  if (kind === "pdf") return "i-book";
+  return "i-paperclip";
+}
+
+function renderAttachmentPreview(file, className = "attachment-preview") {
+  if (file.kind === "image" && file.dataUrl) {
+    return `<img class="${className}" src="${escapeHtml(file.dataUrl)}" alt="${escapeHtml(file.name)}">`;
+  }
+  return `<span class="${className} icon-preview">${icon(attachmentIcon(file.kind))}</span>`;
+}
+
+function attachmentSummary(attachments = state.aiAttachments) {
+  if (!attachments.length) return "";
+  return attachments.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", ");
+}
+
+async function normalizeAiAttachment(file) {
+  if (!file) return null;
+  if (file.size > AI_ATTACHMENT_MAX_BYTES) {
+    throw new Error(`${file.name}: файл больше ${formatBytes(AI_ATTACHMENT_MAX_BYTES)}`);
+  }
+
+  const type = file.type || "application/octet-stream";
+  const base = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name: file.name || "Файл",
+    type,
+    size: file.size || 0,
+  };
+
+  if (isTextAttachment(file)) {
+    const raw = await file.text();
+    const truncated = raw.length > AI_ATTACHMENT_TEXT_LIMIT;
+    return {
+      ...base,
+      kind: "text",
+      text: truncated ? `${raw.slice(0, AI_ATTACHMENT_TEXT_LIMIT)}\n\n[Файл обрезан до ${AI_ATTACHMENT_TEXT_LIMIT} символов]` : raw,
+    };
+  }
+
+  if (type.startsWith("image/") || type === "application/pdf") {
+    return {
+      ...base,
+      kind: type === "application/pdf" ? "pdf" : "image",
+      dataUrl: await readFileAsDataUrl(file),
+    };
+  }
+
+  throw new Error(`${file.name}: поддерживаются текст, PDF и изображения`);
+}
+
+function renderAiAttachments() {
+  const root = document.getElementById("aiAttachments");
+  if (!root) return;
+  root.classList.toggle("hidden", !state.aiAttachments.length);
+  root.innerHTML = state.aiAttachments.map((file) => `
+    <span class="attachment-chip" title="${escapeHtml(file.name)}">
+      ${renderAttachmentPreview(file)}
+      <span>
+        <strong>${escapeHtml(file.name)}</strong>
+        <small>${escapeHtml(formatBytes(file.size))}</small>
+      </span>
+      <button class="mini-icon-button" data-action="ai-remove-attachment" data-id="${escapeHtml(file.id)}" type="button" aria-label="Убрать файл">${icon("i-x")}</button>
+    </span>
+  `).join("");
+}
+
+async function addAiFiles(files) {
+  const selected = Array.from(files || []);
+  if (!selected.length) return;
+  const remaining = AI_ATTACHMENT_LIMIT - state.aiAttachments.length;
+  if (remaining <= 0) {
+    toast(`Можно прикрепить до ${AI_ATTACHMENT_LIMIT} файлов`);
+    return;
+  }
+
+  try {
+    const normalized = [];
+    for (const file of selected.slice(0, remaining)) {
+      const item = await normalizeAiAttachment(file);
+      if (item) normalized.push(item);
+    }
+    state.aiAttachments.push(...normalized);
+    renderAiAttachments();
+    if (selected.length > remaining) toast(`Добавлено ${remaining} из ${selected.length} файлов`);
+  } catch (error) {
+    toast(error.message || "Не удалось прикрепить файл");
+  }
+}
+
+function removeAiAttachment(id) {
+  state.aiAttachments = state.aiAttachments.filter((file) => file.id !== id);
+  renderAiAttachments();
+}
+
+function clearAiAttachments() {
+  state.aiAttachments = [];
+  const input = document.getElementById("aiFileInput");
+  if (input) input.value = "";
+  renderAiAttachments();
+}
+
+const SUBSCRIPT_CHARS = {
+  "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
+  "+": "₊", "-": "₋", "=": "₌", "(": "₍", ")": "₎", "a": "ₐ", "e": "ₑ", "h": "ₕ", "i": "ᵢ", "j": "ⱼ", "k": "ₖ", "l": "ₗ", "m": "ₘ", "n": "ₙ", "o": "ₒ", "p": "ₚ", "r": "ᵣ", "s": "ₛ", "t": "ₜ", "u": "ᵤ", "v": "ᵥ", "x": "ₓ"
 };
+const SUPERSCRIPT_CHARS = {
+  "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
+  "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾", "a": "ᵃ", "b": "ᵇ", "c": "ᶜ", "d": "ᵈ", "e": "ᵉ", "f": "ᶠ", "g": "ᵍ", "h": "ʰ", "i": "ⁱ", "j": "ʲ", "k": "ᵏ", "l": "ˡ", "m": "ᵐ", "n": "ⁿ", "o": "ᵒ", "p": "ᵖ", "r": "ʳ", "s": "ˢ", "t": "ᵗ", "u": "ᵘ", "v": "ᵛ", "w": "ʷ", "x": "ˣ", "y": "ʸ", "z": "ᶻ"
+};
+
+function scriptText(value, map) {
+  return String(value || "").split("").map((char) => map[char] || map[char.toLowerCase()] || char).join("");
+}
+
+function latexToReadableMath(expression) {
+  let text = String(expression || "").trim();
+  if (!text) return "";
+  text = text
+    .replace(/\\left|\\right/g, "")
+    .replace(/\\,/g, " ")
+    .replace(/\\!/g, "")
+    .replace(/\\;/g, " ")
+    .replace(/\\quad/g, " ")
+    .replace(/\\cdot/g, "·")
+    .replace(/\\times/g, "×")
+    .replace(/\\div/g, "÷")
+    .replace(/\\pm/g, "±")
+    .replace(/\\leq/g, "≤")
+    .replace(/\\geq/g, "≥")
+    .replace(/\\neq/g, "≠")
+    .replace(/\\approx/g, "≈")
+    .replace(/\\infty/g, "∞")
+    .replace(/\\pi/g, "π")
+    .replace(/\\theta/g, "θ")
+    .replace(/\\alpha/g, "α")
+    .replace(/\\beta/g, "β")
+    .replace(/\\Delta/g, "Δ")
+    .replace(/\\sum/g, "Σ");
+
+  text = text.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_, top, bottom) => `(${latexToReadableMath(top)})/(${latexToReadableMath(bottom)})`);
+  text = text.replace(/\\sqrt\{([^{}]+)\}/g, (_, value) => `√(${latexToReadableMath(value)})`);
+  text = text.replace(/\\int\s*_\{([^{}]+)\}\s*\^\{([^{}]+)\}/g, (_, lower, upper) => `∫${scriptText(lower, SUBSCRIPT_CHARS)}${scriptText(upper, SUPERSCRIPT_CHARS)}`);
+  text = text.replace(/\\int\s*\^\{([^{}]+)\}\s*_\{([^{}]+)\}/g, (_, upper, lower) => `∫${scriptText(lower, SUBSCRIPT_CHARS)}${scriptText(upper, SUPERSCRIPT_CHARS)}`);
+  text = text.replace(/\\int/g, "∫");
+  text = text.replace(/_\{([^{}]+)\}/g, (_, value) => scriptText(latexToReadableMath(value), SUBSCRIPT_CHARS));
+  text = text.replace(/\^\{([^{}]+)\}/g, (_, value) => scriptText(latexToReadableMath(value), SUPERSCRIPT_CHARS));
+  text = text.replace(/_([A-Za-z0-9+-])/g, (_, value) => scriptText(value, SUBSCRIPT_CHARS));
+  text = text.replace(/\^([A-Za-z0-9+-])/g, (_, value) => scriptText(value, SUPERSCRIPT_CHARS));
+  text = text.replace(/\\([A-Za-z]+)/g, "$1");
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function renderMathExpression(expression, block = false) {
+  return `<span class="ai-math${block ? " block" : ""}">${latexToReadableMath(expression)}</span>`;
+}
+
+function formatAiText(value) {
+  let html = escapeHtml(value);
+  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (_, expression) => renderMathExpression(expression, true));
+  html = html.replace(/\$([^$\n]+?)\$/g, (_, expression) => renderMathExpression(expression));
+  html = html.replace(/\\\((.*?)\\\)/gs, (_, expression) => renderMathExpression(expression));
+  html = html.replace(/\\\[(.*?)\\\]/gs, (_, expression) => renderMathExpression(expression, true));
+  html = html.replace(/\*\*(.+?)\*\*/gs, "<strong>$1</strong>");
+  html = html.replace(/(^|<br>)-\s+/g, "$1<span class=\"ai-bullet\">•</span> ");
+  return html.replaceAll("\n", "<br>");
+}
+
+function icon(id) {
+  return `<svg><use href="#${id}"></use></svg>`;
+}
+
+function isDemoId(id) {
+  return String(id || "").startsWith("demo-");
+}
+
+function readStoredDemoTasks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEMO_TASKS_KEY) || "null");
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistDemoTasks(tasks) {
+  state.demoTasks = Array.isArray(tasks) ? tasks : [];
+  localStorage.setItem(DEMO_TASKS_KEY, JSON.stringify(state.demoTasks));
+}
+
+function getDemoTasks() {
+  return Array.isArray(state.demoTasks) ? state.demoTasks : demoTasks;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? number : fallback;
+  return Math.min(max, Math.max(min, safe));
+}
+
+function normalizeTaskPayload(payload) {
+  const next = { ...payload };
+  if (next.dueDate !== undefined) next.dueDate = next.dueDate ? new Date(next.dueDate).toISOString() : null;
+  if (next.estimatedMins !== undefined) next.estimatedMins = clampNumber(next.estimatedMins, 5, 480, 45);
+  if (next.focusScore !== undefined) next.focusScore = clampNumber(next.focusScore, 1, 100, 70);
+  return next;
+}
+
+function updateDemoTask(id, patch) {
+  const now = new Date().toISOString();
+  const normalized = normalizeTaskPayload(patch);
+  const nextTasks = getDemoTasks().map((task) => {
+    if (String(task.id) !== String(id)) return task;
+    const status = normalized.status || task.status;
+    return {
+      ...task,
+      ...normalized,
+      status,
+      completedAt: status === "done" ? (task.completedAt || now) : null,
+      updatedAt: now,
+    };
+  });
+  persistDemoTasks(nextTasks);
+}
+
+function deleteDemoTask(id) {
+  persistDemoTasks(getDemoTasks().filter((task) => String(task.id) !== String(id)));
+}
+
+function formatDateTimeLocal(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function formatTime(value) {
+  if (!value) return translateValue("без срока");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return translateValue("без срока");
+  return date.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDate(value, options = {}) {
+  if (!value) return translateValue("без срока");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return translateValue("без срока");
+  return date.toLocaleDateString(currentLocale(), {
+    day: "numeric",
+    month: options.month || "short",
+    weekday: options.weekday,
+  });
+}
+
+function dayKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function isSameDay(a, b) {
+  return dayKey(a) === dayKey(b);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function dateWithTime(baseDate, hour, minute = 0) {
+  const date = new Date(baseDate);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+}
+
+function getSubjects() {
+  return state.subjects.length ? state.subjects : demoSubjects;
+}
+
+function getRealSubjects() {
+  return state.subjects.filter((subject) => !isDemoId(subject.id));
+}
+
+function getBaseTasks() {
+  return state.tasks.length ? state.tasks : getDemoTasks();
+}
+
+function getBaseSessions() {
+  return state.sessions.length ? state.sessions : demoSessions;
+}
+
+function getSubject(subjectId) {
+  return getSubjects().find((subject) => subject.id === subjectId)
+    || getSubjects().find((subject) => subject.id === subjectId?.id)
+    || null;
+}
+
+function getSubjectById(id) {
+  return getSubjects().find((subject) => String(subject.id) === String(id)) || null;
+}
+
+function normalizeSubjectColor(subject, index = 0) {
+  const colors = ["#4f8cff", "#4fd8c2", "#9b63ff", "#ff9d43", "#ff5574"];
+  return subject.color || colors[index % colors.length];
+}
+
+function subjectKind(subject) {
+  const name = String(subject?.name || "").toLowerCase();
+  if (/math|матем/.test(name)) return "math";
+  if (/phys|физ/.test(name)) return "physics";
+  if (/eng|англ/.test(name)) return "english";
+  if (/sat/.test(name)) return "sat";
+  return "math";
+}
+
+function withSubject(task) {
+  const subject = task.subject || getSubject(task.subjectId);
+  return { ...task, subject };
+}
+
+function taskMatchesSearch(task) {
+  const q = state.query.trim().toLowerCase();
+  if (!q) return true;
+  const subject = task.subject || getSubject(task.subjectId);
+  return [
+    task.title,
+    task.description,
+    subject?.name,
+    task.priority,
+    task.status,
+  ].some((value) => String(value || "").toLowerCase().includes(q));
+}
+
+function getFilteredTasks() {
+  const today = new Date();
+  return getBaseTasks().map(withSubject).filter((task) => {
+    if (!taskMatchesSearch(task)) return false;
+    if (state.taskFilter === "today") return task.dueDate && isSameDay(task.dueDate, today);
+    if (state.taskFilter === "important") return task.priority === "high";
+    if (state.taskFilter === "overdue") return task.status !== "done" && task.dueDate && new Date(task.dueDate) < today;
+    return true;
+  });
+}
+
+function getSearchResults(query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+  const results = [];
+
+  getBaseTasks().map(withSubject).forEach((task) => {
+    const haystack = [task.title, task.description, task.subject?.name, priorityLabel(task.priority), task.status]
+      .join(" ")
+      .toLowerCase();
+    if (haystack.includes(q)) {
+      results.push({
+        type: "Задача",
+        title: task.title,
+        meta: `${task.subject?.name || "Без предмета"} · ${task.dueDate ? formatTime(task.dueDate) : "без срока"}`,
+        icon: "i-check",
+        route: "tasks",
+        taskFilter: "all",
+      });
+    }
+  });
+
+  getSubjects().forEach((subject) => {
+    const haystack = [subject.name, subject.description, subject.note].join(" ").toLowerCase();
+    if (haystack.includes(q)) {
+      results.push({
+        type: "Предмет",
+        title: subject.name,
+        meta: `Прогресс ${subjectProgress(subject)}%`,
+        icon: subjectIcons[subjectKind(subject)] || "i-book",
+        route: "subjects",
+        subjectId: subject.id,
+      });
+    }
+  });
+
+  [
+    { title: "Дашборд", meta: "Обзор дня и прогресс", icon: "i-home", route: "dashboard", keywords: "дашборд dashboard обзор главная" },
+    { title: "Календарь", meta: "Расписание и события", icon: "i-calendar", route: "calendar", keywords: "календарь расписание план день неделя месяц" },
+    { title: "ИИ-помощник", meta: "Объяснения, планы, тесты", icon: "i-spark", route: "ai", keywords: "ии ai помощник объясни план тест карточки" },
+    { title: "Профиль", meta: "Аккаунт, статистика и настройки", icon: "i-user", route: "profile", keywords: "профиль аккаунт пользователь настройки имя email" },
+    { title: "Создать задачу", meta: "Быстро добавить новую задачу", icon: "i-plus", action: "open-task", keywords: "создать добавить новая задача" },
+  ].forEach((item) => {
+    const haystack = `${item.title} ${item.meta} ${item.keywords}`.toLowerCase();
+    if (haystack.includes(q)) results.push({ type: "Раздел", ...item });
+  });
+
+  if (/интеграл|производн|эссе|конспект|карточ|тест|объясн|план/.test(q)) {
+    results.unshift({
+      type: "ИИ",
+      title: `Спросить ИИ: ${query.trim()}`,
+      meta: "Открыть помощника и отправить запрос",
+      icon: "i-brain",
+      route: "ai",
+      aiPrompt: query.trim(),
+    });
+  }
+
+  return results.slice(0, 8);
+}
+
+function renderSearchResults() {
+  const panel = document.getElementById("searchResults");
+  if (!panel) return;
+  const q = state.query.trim();
+  state.searchResults = getSearchResults(q);
+  state.activeSearchIndex = Math.min(state.activeSearchIndex, Math.max(0, state.searchResults.length - 1));
+
+  if (!q) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  if (!state.searchResults.length) {
+    panel.innerHTML = `
+      <div class="search-empty">
+        Ничего не найдено. Нажми Enter, чтобы спросить ИИ: "${escapeHtml(q)}".
+      </div>
+    `;
+    return;
+  }
+
+  panel.innerHTML = state.searchResults.map((item, index) => `
+    <button class="search-result-item ${index === state.activeSearchIndex ? "active" : ""}" data-search-index="${index}" type="button" role="option">
+      <span class="search-result-icon">${icon(item.icon || "i-search")}</span>
+      <span>
+        <span class="search-result-title">${escapeHtml(item.title)}</span>
+        <span class="search-result-meta">${escapeHtml(item.meta || "")}</span>
+      </span>
+      <span class="search-result-type">${escapeHtml(item.type || "")}</span>
+    </button>
+  `).join("");
+}
+
+async function activateSearchResult(index = state.activeSearchIndex) {
+  const item = state.searchResults[index];
+  const input = document.getElementById("globalSearch");
+  const query = state.query.trim();
+  document.getElementById("searchResults")?.classList.add("hidden");
+
+  if (!item) {
+    if (query) {
+      setActiveRoute("ai");
+      await requestAiReply(query);
+      if (input) input.value = "";
+      state.query = "";
+      renderSearchResults();
+    }
+    return;
+  }
+
+  if (item.action === "open-task") {
+    openTaskModal();
+  } else if (item.route) {
+    setActiveRoute(item.route);
+    if (item.subjectId) {
+      state.selectedSubjectId = item.subjectId;
+      renderSubjects();
+    }
+    if (item.taskFilter) {
+      state.taskFilter = item.taskFilter;
+      renderTasks();
+    }
+    if (item.aiPrompt) {
+      await requestAiReply(item.aiPrompt);
+    }
+  }
+
+  if (input) input.value = "";
+  state.query = "";
+  renderDashboard();
+  renderTasks();
+  renderSubjects();
+  renderSearchResults();
+}
+
+function priorityLabel(priority) {
+  return ({
+    high: "Высокий",
+    medium: "Средний",
+    low: "Низкий",
+  })[priority] || "Средний";
+}
+
+function priorityClass(priority) {
+  return priority === "high" ? "red" : priority === "low" ? "green" : "amber";
+}
+
+function subjectPillClass(subject) {
+  const kind = subjectKind(subject);
+  return kind === "physics" ? "green" : kind === "english" ? "purple" : kind === "sat" ? "amber" : "blue";
+}
+
+function completionRate(tasks = getBaseTasks()) {
+  if (!tasks.length) return 0;
+  return Math.round((tasks.filter((task) => task.status === "done").length / tasks.length) * 100);
+}
+
+function subjectProgress(subject) {
+  const subjectTasks = state.tasks.filter((task) => task.subjectId === subject.id || task.subject?.id === subject.id);
+  if (!subjectTasks.length) return 0;
+  return completionRate(subjectTasks);
+}
+
+function getProfileEmail() {
+  return state.me?.email || "Студент";
+}
+
+function getDefaultProfileName() {
+  const email = getProfileEmail();
+  if (email && email.includes("@")) return email.split("@")[0];
+  return "Дулат Т.";
+}
+
+function getProfileName() {
+  return localStorage.getItem("studyProfileName") || getDefaultProfileName();
+}
+
+function getProfileRole() {
+  return localStorage.getItem("studyProfileRole") || "Студент";
+}
+
+function getProfileAvatar() {
+  return localStorage.getItem("studyProfileAvatar") || "";
+}
+
+function getProfileInitials() {
+  const source = getProfileName() || getProfileEmail();
+  const parts = String(source).replace(/@.*/, "").split(/\s+|[._-]+/).filter(Boolean);
+  const initials = parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return initials || "AI";
+}
+
+function setAvatarElement(el, avatarUrl, initials = getProfileInitials()) {
+  if (!el) return;
+  el.textContent = avatarUrl ? "" : initials;
+  el.classList.toggle("has-image", Boolean(avatarUrl));
+  el.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : "";
+}
+
+function renderAvatars() {
+  const avatar = getProfileAvatar();
+  const initials = getProfileInitials();
+  setAvatarElement(document.getElementById("userAvatar"), avatar, initials);
+  setAvatarElement(document.getElementById("profileInitials"), avatar, initials);
+  setAvatarElement(document.getElementById("profileAvatarPreview"), avatar, initials);
+}
+
+function renderProfile() {
+  const root = document.getElementById("route-profile");
+  if (!root) return;
+
+  const tasks = state.tasks.map(withSubject);
+  const subjects = getSubjects();
+  const done = tasks.filter((task) => task.status === "done").length;
+  const active = tasks.filter((task) => task.status !== "done").length;
+  const today = tasks.filter((task) => task.dueDate && isSameDay(task.dueDate, new Date())).length;
+  const progress = completionRate(tasks);
+  const focusValue = state.focus?.risk ? Math.max(0, 100 - Number(state.focus.risk || 0)) : 85;
+  const weakSubject = subjects
+    .map((subject) => ({ subject, progress: subjectProgress(subject) }))
+    .sort((a, b) => a.progress - b.progress)[0];
+
+  const name = getProfileName();
+  const email = getProfileEmail();
+  const role = getProfileRole();
+
+  renderAvatars();
+  document.getElementById("profileDisplayName").textContent = name;
+  document.getElementById("profileDisplayEmail").textContent = email;
+  document.getElementById("profileRoleBadge").textContent = role;
+  document.getElementById("profileVerifyBadge").textContent = state.me?.isEmailVerified === false ? "Почта не подтверждена" : "Аккаунт активен";
+  document.getElementById("profileNameInput").value = name;
+  document.getElementById("profileEmailInput").value = email;
+  document.getElementById("profileRoleSelect").value = role;
+  document.getElementById("profileThemeLabel").textContent = document.documentElement.classList.contains("light-theme") ? "Светлая тема" : "Темная тема";
+
+  document.getElementById("profileStats").innerHTML = [
+    ["Задач в работе", active, "i-check", "blue"],
+    ["Выполнено", done, "i-target", "green"],
+    ["Предметов", subjects.length, "i-book", "purple"],
+    ["Сегодня", today, "i-calendar", "amber"],
+    ["Прогресс", `${progress}%`, "i-chart", "blue"],
+    ["Фокус", `${focusValue}%`, "i-brain", "green"],
+  ].map(([label, value, iconId, tone]) => `
+    <div class="profile-stat-card">
+      <span class="plan-icon ${tone}">${icon(iconId)}</span>
+      <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+    </div>
+  `).join("");
+
+  if (weakSubject?.subject) {
+    document.getElementById("profileRoleBadge").title = `Зона роста: ${weakSubject.subject.name}`;
+  }
+}
+
+function renderTaskItem(task, options = {}) {
+  const subject = task.subject || getSubject(task.subjectId);
+  const done = task.status === "done";
+  const time = task.dueDate ? formatTime(task.dueDate) : "без срока";
+  const title = options.subjectPrefix && subject ? `${subject.name} - ${task.title}` : task.title;
+  const subjectName = subject?.name || "Учеба";
+  const demoAttr = isDemoId(task.id) ? " data-demo=\"true\"" : "";
+  const actions = options.showActions ? `
+      <div class="task-actions">
+        <button class="mini-icon-button" data-action="task-edit" data-id="${escapeHtml(task.id)}" type="button" aria-label="Редактировать задачу">${icon("i-pen")}</button>
+        <button class="mini-icon-button danger" data-action="task-delete" data-id="${escapeHtml(task.id)}" type="button" aria-label="Удалить задачу">${icon("i-x")}</button>
+      </div>
+    ` : "";
+
+  return `
+    <div class="task-item ${done ? "done" : ""}" data-task-id="${escapeHtml(task.id)}">
+      <button class="task-check ${done ? "done" : ""}" data-action="task-status" data-id="${escapeHtml(task.id)}" data-status="${done ? "todo" : "done"}"${demoAttr} type="button" aria-label="Изменить статус">
+        ${done ? icon("i-check") : ""}
+      </button>
+      <div class="task-title">
+        <strong>${escapeHtml(title)}</strong>
+        <span class="pill ${subjectPillClass(subject)}">${escapeHtml(subjectName)}</span>
+        ${options.showPriority ? `<span class="pill ${priorityClass(task.priority)}">${priorityLabel(task.priority)}</span>` : ""}
+      </div>
+      <div class="task-meta">${time}</div>
+      ${actions}
+    </div>
+  `;
+}
+
+function getTaskById(id) {
+  return getBaseTasks().map(withSubject).find((task) => String(task.id) === String(id)) || null;
+}
+
+function openTaskModal(task = null) {
+  const form = document.getElementById("taskForm");
+  if (!form) return;
+
+  form.reset();
+  fillSubjectSelects();
+  const editing = Boolean(task);
+  form.dataset.mode = editing ? "edit" : "create";
+  form.elements.taskId.value = editing ? task.id : "";
+  form.elements.title.value = editing ? task.title || "" : "";
+  form.elements.subjectId.value = editing ? task.subjectId || task.subject?.id || "" : "";
+  form.elements.dueDate.value = editing ? formatDateTimeLocal(task.dueDate) : "";
+  form.elements.priority.value = editing ? task.priority || "medium" : "medium";
+  form.elements.estimatedMins.value = editing ? task.estimatedMins || 45 : 45;
+  form.elements.focusScore.value = editing ? task.focusScore || 70 : 70;
+  form.elements.description.value = editing ? task.description || "" : "";
+
+  document.getElementById("taskModalTitle").textContent = editing ? "Редактировать задачу" : "Новая задача";
+  document.getElementById("taskSubmitBtn").textContent = editing ? "Сохранить изменения" : "Добавить задачу";
+  document.getElementById("taskDeleteBtn")?.classList.toggle("hidden", !editing);
+  toggleModal("taskModal", true);
+}
+
+function openSubjectModal(subject = null) {
+  const form = document.getElementById("subjectForm");
+  if (!form) return;
+
+  const editing = Boolean(subject) && !isDemoId(subject.id);
+  form.reset();
+  form.dataset.mode = editing ? "edit" : "create";
+  form.elements.subjectId.value = editing ? subject.id : "";
+  form.elements.name.value = editing ? subject.name || "" : "";
+  form.elements.color.value = editing ? normalizeSubjectColor(subject) : "#4f8cff";
+  form.elements.targetMinutes.value = editing ? subject.targetMinutes || 240 : 240;
+  form.elements.description.value = editing ? subject.description || "" : "";
+
+  document.getElementById("subjectModalTitle").textContent = editing ? "Редактировать предмет" : "Новый предмет";
+  document.getElementById("subjectSubmitBtn").textContent = editing ? "Сохранить изменения" : "Добавить предмет";
+  document.getElementById("subjectDeleteBtn")?.classList.toggle("hidden", !editing);
+  toggleModal("subjectModal", true);
+  form.elements.name?.focus();
+}
+
+async function saveTask(taskId, payload) {
+  if (isDemoId(taskId)) {
+    updateDemoTask(taskId, payload);
+    renderAll();
+    return;
+  }
+  await api(`/api/tasks/${taskId}`, { method: "PATCH", body: payload });
+  await refresh();
+}
+
+async function removeTask(taskId) {
+  if (!taskId) return;
+  if (isDemoId(taskId)) {
+    deleteDemoTask(taskId);
+    renderAll();
+    return;
+  }
+  await api(`/api/tasks/${taskId}`, { method: "DELETE" });
+  await refresh();
+}
+
+async function removeSubject(subjectId) {
+  if (!subjectId || isDemoId(subjectId)) return;
+  await api(`/api/subjects/${subjectId}`, { method: "DELETE" });
+  if (String(state.selectedSubjectId) === String(subjectId)) state.selectedSubjectId = null;
+  await refresh();
+}
+
+function buildPlanItems() {
+  const todayTasks = state.tasks
+    .map(withSubject)
+    .filter((task) => task.status !== "done" && task.dueDate && isSameDay(task.dueDate, new Date()))
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  const labels = ["Глубокая работа", "Изучение нового", "Практика", "Повторение"];
+  const iconClasses = ["blue", "purple", "green", "amber"];
+  const icons = ["i-target", "i-flask", "i-pen", "i-book"];
+
+  return todayTasks.slice(0, 4).map((task, index) => {
+    const subject = task.subject || getSubject(task.subjectId);
+    const start = task.dueDate ? new Date(task.dueDate) : null;
+    const duration = Math.max(30, Number(task.estimatedMins || 60));
+    const end = start ? new Date(start.getTime() + duration * 60_000) : null;
+    const time = start && end ? `${formatTime(start)} - ${formatTime(end)}` : "без времени";
+    return {
+      taskId: task.id,
+      time,
+      label: labels[index] || "Учебный блок",
+      detail: subject ? `${subject.name} - ${task.title}` : task.title,
+      icon: icons[index] || "i-target",
+      tone: iconClasses[index] || "blue",
+    };
+  });
+}
+
+function renderDashboard() {
+  const tasks = state.tasks.map(withSubject);
+  const activeTasks = tasks.filter((task) => task.status !== "done");
+  const todayTasks = activeTasks.filter((task) => task.dueDate && isSameDay(task.dueDate, new Date()));
+  const total = tasks.length;
+  const focusValue = activeTasks.length
+    ? Math.round(activeTasks.reduce((sum, task) => sum + Number(task.focusScore || 0), 0) / activeTasks.length)
+    : 0;
+  const progress = tasks.length ? completionRate(tasks) : 0;
+
+  document.getElementById("metricTotalTasks").textContent = total;
+  document.getElementById("metricFocus").textContent = `${focusValue}%`;
+  document.getElementById("metricProgress").textContent = `${progress}%`;
+  document.getElementById("metricTodayTasks").textContent = `${todayTasks.length} на сегодня`;
+  document.getElementById("metricFocusNote").textContent = activeTasks.length ? "Средний фокус задач" : "Нет активных задач";
+  document.getElementById("metricProgressNote").textContent = tasks.length ? "По всем задачам" : "Нет данных";
+
+  const todayWrap = document.getElementById("dashboardTodayTasks");
+  const todaySource = (todayTasks.length ? todayTasks : getDemoTasks().map(withSubject).slice(0, 4));
+  todayWrap.innerHTML = todaySource.slice(0, 4).map((task) => renderTaskItem(task, { subjectPrefix: true })).join("");
+  if (!todayTasks.length) {
+    todayWrap.innerHTML = `<div class="empty dashboard-empty"><strong>На сегодня задач нет.</strong><button class="primary-button open-task-modal" type="button">Создать задачу</button></div>`;
+  }
+
+  document.getElementById("dashboardPlan").innerHTML = buildPlanItems().map((item) => `
+    <button class="plan-item" data-action="plan-item" data-id="${escapeHtml(item.taskId)}" type="button">
+      <div class="plan-time">${escapeHtml(item.time)}</div>
+      <span class="plan-icon ${item.tone}">${icon(item.icon)}</span>
+      <div class="plan-text">
+        <strong>${escapeHtml(item.label)}</strong>
+        <span>${escapeHtml(item.detail)}</span>
+      </div>
+    </button>
+  `).join("");
+  if (!buildPlanItems().length) {
+    document.getElementById("dashboardPlan").innerHTML = `<div class="empty dashboard-empty"><strong>План появится из задач с дедлайном на сегодня.</strong><button class="primary-button open-task-modal" type="button">Добавить задачу</button></div>`;
+  }
+
+  const subjects = state.subjects.slice(0, 3);
+  document.getElementById("dashboardSubjectProgress").innerHTML = subjects.map((subject, index) => {
+    const color = normalizeSubjectColor(subject, index);
+    const progressValue = subjectProgress(subject);
+    return `
+      <button class="subject-progress" data-action="subject-progress" data-subject-id="${escapeHtml(subject.id)}" type="button">
+        <div class="subject-progress-head"><span>${escapeHtml(subject.name)}</span><strong>${progressValue}%</strong></div>
+        <div class="progress-track"><span class="progress-fill" style="width:${progressValue}%;background:${color}"></span></div>
+      </button>
+    `;
+  }).join("");
+  if (!subjects.length) {
+    document.getElementById("dashboardSubjectProgress").innerHTML = `<div class="empty dashboard-empty"><strong>Добавь предметы, чтобы видеть прогресс.</strong><button class="primary-button open-subject-modal" type="button">Добавить предмет</button></div>`;
+  }
+}
+
+function renderTasks() {
+  const tasks = getFilteredTasks();
+  const allTasks = getBaseTasks().map(withSubject);
+  const todayTasks = allTasks.filter((task) => task.dueDate && isSameDay(task.dueDate, new Date()));
+  const overdue = allTasks.filter((task) => task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date()).length;
+  const inProgress = allTasks.filter((task) => task.status !== "done").length;
+  const doneTasks = allTasks.filter((task) => task.status === "done").length;
+
+  const list = document.getElementById("taskList");
+  list.innerHTML = tasks.length
+    ? tasks.map((task) => renderTaskItem(task, { showPriority: true, showActions: true })).join("")
+    : `<div class="empty">Задач по этому фильтру нет.</div>`;
+
+  document.getElementById("taskOverview").innerHTML = [
+    ["Всего", allTasks.length, "i-calendar", "blue"],
+    ["В работе", inProgress, "i-chart", "blue"],
+    ["Выполнено", doneTasks, "i-check", "green"],
+    ["Просрочено", overdue, "i-bell", "red"],
+  ].map(([label, value, iconId, tone]) => `
+    <div class="overview-card">
+      <span class="plan-icon ${tone}">${icon(iconId)}</span>
+      <div><span>${label}</span><strong>${value}</strong></div>
+    </div>
+  `).join("");
+
+  const focusSource = todayTasks.length ? todayTasks : getDemoTasks().map(withSubject).slice(0, 2);
+  document.getElementById("taskFocus").innerHTML = focusSource.slice(0, 3).map((task) => `
+    <div class="focus-item">
+      <div class="focus-time">${formatTime(task.dueDate)}</div>
+      <div>
+        <strong>${escapeHtml(task.subject?.name || "Учеба")}</strong>
+        <span>${escapeHtml(task.title)}</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+function getSubjectTasks(subject) {
+  if (!subject) return [];
+  return state.tasks
+    .map(withSubject)
+    .filter((task) => task.subjectId === subject.id || task.subject?.id === subject.id)
+    .sort((a, b) => {
+      const doneA = a.status === "done" ? 1 : 0;
+      const doneB = b.status === "done" ? 1 : 0;
+      return doneA - doneB || String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999"));
+    });
+}
+
+function taskPracticeLevel(task) {
+  return task.priority === "high" ? "Сложный" : task.priority === "low" ? "Лёгкий" : "Средний";
+}
+
+function getSubjectPracticeItems(subject) {
+  return getSubjectTasks(subject).map((task) => {
+    const minutes = Math.max(5, Number(task.estimatedMins || 30));
+    const rawScore = Number(task.focusScore);
+    return {
+      task,
+      title: task.title,
+      level: taskPracticeLevel(task),
+      meta: `${minutes} мин`,
+      score: task.status === "done" && Number.isFinite(rawScore) ? clampNumber(rawScore, 1, 100, 70) : null,
+      prompt: `Создай мини-тест по задаче "${task.title}" для предмета ${subject.name}`,
+    };
+  });
+}
+
+function renderSubjectEmpty(message, actionHtml = "") {
+  return `
+    <div class="empty subject-empty">
+      <strong>${escapeHtml(message)}</strong>
+      ${actionHtml || '<button class="primary-button open-task-modal" type="button">Создать задачу</button>'}
+    </div>
+  `;
+}
+
+function renderMaterialPlaceholders(selected) {
+  const subjectName = selected?.name || "предмету";
+  const placeholders = [
+    ["Учебник", `Учебник по ${subjectName}`, "Базовая теория и ключевые правила"],
+    ["Конспект", "Короткие конспекты", "Главные формулы, термины и примеры"],
+    ["Практика", "Сборник заданий", "Упражнения для закрепления темы"],
+  ];
+
+  return placeholders.map(([kind, title, meta]) => `
+    <div class="test-item material-placeholder">
+      <span class="test-icon ${subjectPillClass(selected)}">${icon("i-book")}</span>
+      <strong>${escapeHtml(title)}</strong>
+      <span class="pill ${subjectPillClass(selected)}">${escapeHtml(kind)}</span>
+      <span class="test-meta">${escapeHtml(meta)}</span>
+      <span class="score muted">скоро</span>
+    </div>
+  `).join("");
+}
+
+function renderSubjectTabContent(selected, tests, selectedKind) {
+  const wrap = document.getElementById("subjectTests");
+  document.querySelectorAll("[data-subject-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.subjectTab === state.subjectTab);
+  });
+
+  if (state.subjectTab === "materials") {
+    wrap.innerHTML = renderMaterialPlaceholders(selected);
+    return;
+  }
+
+  if (state.subjectTab === "progress") {
+    const progress = subjectProgress(selected);
+    const subjectTasks = state.tasks.filter((task) => task.subjectId === selected.id || task.subject?.id === selected.id);
+    const done = subjectTasks.filter((task) => task.status === "done").length;
+    wrap.innerHTML = `
+      <div class="subject-progress-detail">
+        <div class="overview-card">
+          <span class="plan-icon blue">${icon("i-chart")}</span>
+          <div><span>Общий прогресс</span><strong>${progress}%</strong></div>
+        </div>
+        <div class="overview-card">
+          <span class="plan-icon green">${icon("i-check")}</span>
+          <div><span>Выполнено задач</span><strong>${done}/${subjectTasks.length}</strong></div>
+        </div>
+        <div class="overview-card">
+          <span class="plan-icon purple">${icon("i-target")}</span>
+          <div><span>Фокус недели</span><strong>${subjectTasks.length ? progress : 0}%</strong></div>
+        </div>
+        <button class="primary-button ai-quick" data-prompt="Проанализируй прогресс по предмету ${escapeHtml(selected.name)} и дай план улучшения" type="button">Попросить ИИ проанализировать</button>
+      </div>
+    `;
+    return;
+  }
+
+  const practiceItems = getSubjectPracticeItems(selected);
+  if (!practiceItems.length) {
+    wrap.innerHTML = renderSubjectEmpty(
+      "По этому предмету пока нет тестов для практики.",
+      `<button class="primary-button ai-quick" data-prompt="Создай мини-тест по предмету ${escapeHtml(selected.name)}" type="button">Сгенерировать тест</button>`
+    );
+    return;
+  }
+
+  wrap.innerHTML = practiceItems.map(({ title, level, meta, score, prompt }) => {
+    const scoreClass = score == null ? "bad" : score >= 85 ? "good" : score >= 70 ? "mid" : "bad";
+    return `
+      <button class="test-item" data-action="start-test" data-prompt="${escapeHtml(prompt)}" type="button">
+        <span class="test-icon">${icon(subjectIcons[selectedKind] || "i-book")}</span>
+        <strong>${escapeHtml(title)}</strong>
+        <span class="pill ${level === "Сложный" ? "purple" : level === "Лёгкий" ? "green" : "blue"}">${escapeHtml(level)}</span>
+        <span class="test-meta">${escapeHtml(meta)}</span>
+        <span class="score ${scoreClass}">${score == null ? "не пройдено" : `${score}%`}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+function renderSubjects() {
+  const subjects = getSubjects();
+  const selected = subjects.find((subject) => subject.id === state.selectedSubjectId) || subjects[0];
+  if (selected && state.selectedSubjectId !== selected.id) state.selectedSubjectId = selected.id;
+
+  document.getElementById("subjectCards").innerHTML = subjects.map((subject, index) => {
+    const color = normalizeSubjectColor(subject, index);
+    const progressValue = subjectProgress(subject);
+    const kind = subjectKind(subject);
+    const taskCount = state.tasks.filter((task) => task.subjectId === subject.id || task.subject?.id === subject.id).length;
+    const note = taskCount ? `${taskCount} ${taskCount === 1 ? "задача" : "задач"}` : "Нет данных";
+    return `
+      <button class="subject-card ${subject.id === state.selectedSubjectId ? "active" : ""}" data-subject-id="${escapeHtml(subject.id)}" style="--subject-color:${color}" type="button">
+        <span class="subject-icon">${icon(subjectIcons[kind] || "i-book")}</span>
+        <span>
+          <h3>${escapeHtml(subject.name)}</h3>
+          <span class="subject-percent">${progressValue}%</span>
+          <span class="progress-track"><span class="progress-fill" style="width:${progressValue}%;background:${color}"></span></span>
+          <span class="subject-note">${escapeHtml(note)}</span>
+        </span>
+        ${icon("i-chevron")}
+      </button>
+    `;
+  }).join("");
+
+  const subjectActions = document.getElementById("subjectActions");
+  if (subjectActions) {
+    const canManage = selected && !isDemoId(selected.id);
+    subjectActions.innerHTML = canManage ? `
+      <button class="ghost-button subject-action-button" data-action="subject-edit" data-subject-id="${escapeHtml(selected.id)}" type="button">${icon("i-pen")}Изменить</button>
+      <button class="ghost-button danger-button subject-action-button" data-action="subject-delete" data-subject-id="${escapeHtml(selected.id)}" type="button">${icon("i-x")}Удалить</button>
+    ` : "";
+  }
+
+  if (!selected) return;
+  const selectedKind = subjectKind(selected);
+  document.getElementById("activeSubjectTitle").textContent = selected.name;
+  renderSubjectTabContent(selected, [], selectedKind);
+}
+
+function calendarEvents() {
+  const taskEvents = getBaseTasks().map(withSubject).filter((task) => task.dueDate).map((task) => ({
+    id: task.id,
+    date: task.dueDate,
+    title: task.title,
+    subject: task.subject,
+    kind: "task",
+    color: task.subject?.color || "#4f8cff",
+  }));
+
+  const sessionEvents = getBaseSessions().map((session) => {
+    const subject = getSubject(session.subjectId) || session.subject;
+    return {
+      id: session.id,
+      date: session.startedAt || session.createdAt,
+      title: "Фокус-сессия",
+      subject,
+      kind: "session",
+      color: subject?.color || "#ff9d43",
+    };
+  });
+
+  return [...taskEvents, ...sessionEvents].filter((event) => event.date);
+}
+
+function renderCalendar() {
+  const cursor = state.calendarCursor;
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const monthStartOffset = (first.getDay() + 6) % 7;
+  const start = addDays(first, -monthStartOffset);
+  const events = calendarEvents();
+  const today = new Date();
+  if (!state.selectedDay) state.selectedDay = dayKey(today);
+
+  document.getElementById("calendarMonthTitle").textContent = first.toLocaleDateString(currentLocale(), { month: "long", year: "numeric" }).replace(/^./, (char) => char.toUpperCase());
+  document.querySelectorAll("[data-calendar-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.calendarMode === state.calendarMode);
+  });
+
+  if (state.calendarMode === "day") {
+    const selectedDate = new Date(`${state.selectedDay}T12:00:00`);
+    const dayEvents = events.filter((event) => dayKey(event.date) === state.selectedDay);
+    const source = dayEvents.length ? dayEvents : calendarEvents().slice(0, 4);
+    document.getElementById("calendarGrid").innerHTML = `
+      <div class="calendar-day-view">
+        <h3>${selectedDate.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })}</h3>
+        <div class="calendar-mode-list">
+          ${source.map((event, index) => {
+            const subject = event.subject || getSubjects()[index % getSubjects().length];
+            return `
+              <button class="calendar-mode-item" data-action="event-ai" data-prompt="${escapeHtml(currentLanguage() === "en" ? `Help me prepare for this event: ${translateValue(event.title)}` : `Помоги подготовиться к событию: ${event.title}`)}" type="button">
+                <span class="event-dot" style="background:${event.color || subject?.color || "#4f8cff"}"></span>
+                <strong>${formatTime(event.date)}</strong>
+                <span>${escapeHtml(subject?.name || translateValue("Учеба"))} - ${escapeHtml(translateValue(event.title))}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+    renderSelectedDay();
+    renderRecommendations();
+    renderWeekPlan();
+    return;
+  }
+
+  if (state.calendarMode === "week") {
+    const selectedDate = new Date(`${state.selectedDay}T12:00:00`);
+    const weekStart = addDays(selectedDate, -((selectedDate.getDay() + 6) % 7));
+    document.getElementById("calendarGrid").innerHTML = `
+      <div class="calendar-week-view">
+        ${Array.from({ length: 7 }, (_, index) => {
+          const date = addDays(weekStart, index);
+          const key = dayKey(date);
+          const dayEvents = events.filter((event) => dayKey(event.date) === key).slice(0, 4);
+          return `
+            <button class="week-column ${state.selectedDay === key ? "active" : ""}" data-date="${key}" type="button">
+              <strong>${date.toLocaleDateString(currentLocale(), { weekday: "short" })}</strong>
+              <span>${date.getDate()}</span>
+              <div>
+                ${dayEvents.length ? dayEvents.map((event) => `<small style="border-left-color:${event.color}">${escapeHtml(event.subject?.name || translateValue(event.title))}</small>`).join("") : `<small>${translateValue("пусто")}</small>`}
+              </div>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `;
+    renderSelectedDay();
+    renderRecommendations();
+    renderWeekPlan();
+    return;
+  }
+
+  const weekdayLabels = currentLanguage() === "en" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  const cells = [];
+  weekdayLabels.forEach((label) => cells.push(`<div class="weekday">${label}</div>`));
+
+  for (let index = 0; index < 42; index += 1) {
+    const date = addDays(start, index);
+    const key = dayKey(date);
+    const dayEvents = events.filter((event) => dayKey(event.date) === key).slice(0, 2);
+    cells.push(`
+      <button class="calendar-cell ${date.getMonth() !== cursor.getMonth() ? "muted" : ""} ${isSameDay(date, today) ? "today" : ""} ${state.selectedDay === key ? "active" : ""}" data-date="${key}" type="button">
+        <span class="calendar-day-num">${date.getDate()}</span>
+        <span class="calendar-events">
+          ${dayEvents.map((event) => `
+            <span class="calendar-event"><span class="event-dot" style="background:${event.color}"></span>${escapeHtml(event.subject?.name || translateValue(event.title))}</span>
+          `).join("")}
+        </span>
+      </button>
+    `);
+  }
+
+  document.getElementById("calendarGrid").innerHTML = cells.join("");
+  renderSelectedDay();
+  renderRecommendations();
+  renderWeekPlan();
+}
+
+function renderSelectedDay() {
+  const selectedDate = new Date(`${state.selectedDay}T12:00:00`);
+  const events = calendarEvents()
+    .filter((event) => dayKey(event.date) === state.selectedDay)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const source = events.length ? events : calendarEvents().slice(0, 5);
+
+  document.getElementById("selectedDayLabel").textContent = selectedDate.toLocaleDateString(currentLocale(), { day: "numeric", month: "long", weekday: "long" });
+  document.getElementById("daySchedule").innerHTML = source.slice(0, 5).map((event, index) => {
+    const end = new Date(new Date(event.date).getTime() + 90 * 60_000);
+    const subject = event.subject || getSubjects()[index % getSubjects().length];
+    const color = subject?.color || event.color || "#4f8cff";
+    return `
+      <div class="day-item" style="border-left-color:${color}">
+        <div class="day-time">${formatTime(event.date)} - ${formatTime(end)}</div>
+        <span class="subject-icon" style="--subject-color:${color}">${icon(subjectIcons[subjectKind(subject)] || "i-calendar")}</span>
+        <div><strong>${escapeHtml(subject?.name || translateValue(event.title))}</strong><span>${escapeHtml(translateValue(event.title))}</span></div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderScheduleSwitcher() {
+  const isWeek = state.calendarSideView === "week";
+  const title = document.getElementById("schedulePanelTitle");
+  const dayView = document.getElementById("dayScheduleView");
+  const weekView = document.getElementById("weekPlanView");
+  const label = document.getElementById("selectedDayLabel");
+  if (!title || !dayView || !weekView) return;
+
+  title.textContent = translateValue(isWeek ? "План недели" : "Расписание дня");
+  dayView.classList.toggle("hidden", isWeek);
+  weekView.classList.toggle("hidden", !isWeek);
+  label?.classList.toggle("muted", isWeek);
+  document.querySelectorAll(".schedule-switcher-controls button").forEach((button) => {
+    const pointsToWeek = button.dataset.action === "schedule-next";
+    button.classList.toggle("active", pointsToWeek === isWeek);
+  });
+}
+
+function renderRecommendations() {
+  const cards = [
+    ["Сбалансируй нагрузку", "Во второй половине недели добавь короткую фокус-сессию для восстановления.", "i-target", "blue"],
+    ["Подготовься к дедлайнам", "У тебя есть задачи на ближайшие дни. Начни подготовку заранее.", "i-chart", "purple"],
+    ["Оптимальное время", "Твой пик продуктивности: 10:00 - 13:00. Планируй сложные блоки туда.", "i-brain", "green"],
+  ];
+  document.getElementById("calendarRecommendations").innerHTML = cards.map(([title, text, iconId, tone]) => `
+    <div class="rec-card">
+      <span class="plan-icon ${tone}">${icon(iconId)}</span>
+      <div><h3>${escapeHtml(translateValue(title))}</h3><p>${escapeHtml(translateValue(text))}</p></div>
+    </div>
+  `).join("");
+}
+
+function renderWeekPlan() {
+  const selected = state.selectedDay ? new Date(`${state.selectedDay}T12:00:00`) : new Date();
+  const weekStart = addDays(selected, -((selected.getDay() + 6) % 7));
+  const tasks = getBaseTasks()
+    .map(withSubject)
+    .filter((task) => task.dueDate)
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  document.getElementById("weekPlan").innerHTML = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    const key = dayKey(date);
+    const dayTasks = tasks.filter((task) => dayKey(task.dueDate) === key);
+    const activeCount = dayTasks.filter((task) => task.status !== "done").length;
+    const doneCount = dayTasks.length - activeCount;
+    const label = date.toLocaleDateString(currentLocale(), { weekday: "short" }).replace(".", "");
+    return `
+      <div class="week-day ${isSameDay(date, new Date()) ? "today" : ""}">
+        <div class="week-day-head">
+          <span>${escapeHtml(label)}</span>
+          <strong>${date.getDate()}</strong>
+        </div>
+        <div class="week-day-body">
+          ${dayTasks.length ? `
+            <span class="week-count">${translateValue(`${activeCount} активн.${doneCount ? ` · ${doneCount} готово` : ""}`)}</span>
+            ${dayTasks.slice(0, 2).map((task) => `
+              <button class="week-task" data-action="plan-item" data-id="${escapeHtml(task.id)}" type="button">
+                <span style="background:${task.subject?.color || "#4f8cff"}"></span>
+                ${escapeHtml(task.title)}
+              </button>
+            `).join("")}
+            ${dayTasks.length > 2 ? `<span class="week-more">${translateValue(`+ ещё ${dayTasks.length - 2}`)}</span>` : ""}
+          ` : `<span class="week-empty">${translateValue("Нет задач")}</span>`}
+        </div>
+      </div>
+    `;
+  }).join("");
+  renderScheduleSwitcher();
+}
+
+function renderAi() {
+  const context = [
+    ["Предметы", getSubjects().length, "i-target", "green"],
+    ["Задач сегодня", getBaseTasks().filter((task) => task.dueDate && isSameDay(task.dueDate, new Date())).length || 4, "i-calendar", "blue"],
+    ["Фокус", `${state.focus?.risk ? Math.max(0, 100 - Number(state.focus.risk || 0)) : 85}%`, "i-flask", "purple"],
+    ["ИИ", state.aiStatus?.configured ? "Live" : "Fallback", "i-brain", state.aiStatus?.configured ? "green" : "blue"],
+  ];
+
+  context[3][1] = state.aiStatus?.configured ? "Live" : "Setup";
+  context[3][3] = state.aiStatus?.configured ? "green" : "amber";
+
+  document.getElementById("aiContext").innerHTML = context.map(([label, value, iconId, tone]) => `
+    <div class="context-row">
+      <span class="context-icon ${tone}">${icon(iconId)}</span>
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `).join("");
+
+  const box = document.getElementById("aiMessages");
+  if (!box || box.children.length) return;
+  return;
+  addAiMessage("Помоги составить план на сегодня по математике и физике", "user", { track: false });
+  addAiMessage("Конечно! Вот оптимальный план на сегодня:\n10:00 - 11:30 Математика - уравнения и неравенства\n11:45 - 13:15 Физика - механика, законы Ньютона\n14:30 - 15:30 Практика - задачи по математике\n16:00 - 17:00 Физика - задачи на движение\n\nХочешь, добавлю задачи и материалы к каждому блоку?", "bot", { track: false });
+  addAiMessage("Да, добавь, пожалуйста", "user", { track: false });
+  addAiMessage("Готово! Я добавил задачи и полезные материалы к каждому блоку плана.", "bot", { track: false });
+}
+
+function addAiMessage(text, role = "bot", options = {}) {
+  const box = document.getElementById("aiMessages");
+  if (!box) return null;
+  const normalized = role === "user" ? "user" : "bot";
+  const attachments = Array.isArray(options.attachments) ? options.attachments : [];
+  if (options.track !== false) {
+    const attachmentNote = attachmentSummary(attachments);
+    state.aiConversation.push({
+      role: normalized === "user" ? "user" : "assistant",
+      content: attachmentNote ? `${String(text || "")}\n\nПрикреплено: ${attachmentNote}` : String(text || ""),
+    });
+  }
+  const div = document.createElement("div");
+  div.className = `msg ${normalized}${options.thinking ? " thinking" : ""}`;
+  if (options.thinking) {
+    div.setAttribute("aria-live", "polite");
+    div.innerHTML = `
+      <span class="ai-thinking-loader" aria-hidden="true">
+        <span class="ai-thinking-mark">AI</span>
+        <span class="ai-thinking-dots">
+          <span></span><span></span><span></span>
+        </span>
+      </span>
+      <span class="ai-thinking-text">${escapeHtml(text)}</span>
+    `;
+  } else {
+    const messageHtml = normalized === "bot" ? formatAiText(text) : escapeHtml(text).replaceAll("\n", "<br>");
+    const attachmentHtml = attachments.length ? `
+      <span class="msg-attachments">
+        ${attachments.map((file) => `
+          <span class="msg-attachment ${file.kind === "image" && file.dataUrl ? "image" : ""}">
+            ${renderAttachmentPreview(file, "msg-attachment-preview")}
+            <span>${escapeHtml(file.name)}</span>
+          </span>
+        `).join("")}
+      </span>
+    ` : "";
+    div.innerHTML = `${messageHtml}${attachmentHtml}`;
+  }
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function setAiBusy(value) {
+  state.aiBusy = value;
+  const submit = document.getElementById("aiSubmitBtn");
+  const prompt = document.getElementById("aiPrompt");
+  const attach = document.querySelector(".attach-button");
+  const fileInput = document.getElementById("aiFileInput");
+  if (submit) submit.disabled = value;
+  if (prompt) prompt.disabled = value;
+  if (attach) attach.disabled = value;
+  if (fileInput) fileInput.disabled = value;
+  document.querySelectorAll(".ai-quick").forEach((button) => {
+    button.disabled = value;
+  });
+}
+
+function addAiActionMessage(result, prompt) {
+  const box = document.getElementById("aiMessages");
+  if (!box) return;
+  const drafts = Array.isArray(result?.actions?.taskDrafts) ? result.actions.taskDrafts : [];
+  const text = `${prompt}\n${result?.response || ""}`.toLowerCase();
+  if (!drafts.length && !/план|распис|задач|дедлайн|подготов|plan|task|schedule|deadline|prepare/.test(text)) return;
+  state.aiPendingTaskDrafts = drafts;
+
+  const div = document.createElement("div");
+  div.className = "msg bot ai-action-card";
+  div.innerHTML = `
+    <strong>Могу сразу превратить это в задачи.</strong>
+    <span>${drafts.length ? `Подготовлено задач: ${drafts.length}. Добавлю их и обновлю дашборд.` : "Добавлю учебные блоки на сегодня и обновлю дашборд."}</span>
+    <div class="ai-action-row">
+      <button class="primary-button" data-action="create-ai-plan-tasks" type="button">Добавить задачи</button>
+      <button class="ghost-button nav-jump" data-route="tasks" type="button">Открыть задачи</button>
+      <button class="ghost-button nav-jump" data-route="calendar" type="button">Открыть календарь</button>
+    </div>
+  `;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  applyLanguage();
+}
+
+async function createAiPlanTasks(drafts = state.aiPendingTaskDrafts) {
+  if (Array.isArray(drafts) && drafts.length) {
+    const existingTitles = new Set(state.tasks.map((task) => String(task.title || "").toLowerCase()));
+    const toCreate = drafts.filter((item) => item?.title && !existingTitles.has(String(item.title).toLowerCase()));
+    if (!toCreate.length) {
+      toast("ИИ-задачи уже добавлены");
+      return;
+    }
+    await Promise.all(toCreate.map((item) => api("/api/tasks", {
+      method: "POST",
+      body: {
+        title: item.title,
+        subjectId: item.subjectId || null,
+        dueDate: item.dueDate || null,
+        priority: item.priority || "medium",
+        estimatedMins: Number(item.estimatedMins || 45),
+        focusScore: Number(item.focusScore || 80),
+        description: item.description || "Создано ИИ-помощником из текущего учебного контекста.",
+      },
+    })));
+    state.aiPendingTaskDrafts = [];
+    toast("ИИ-задачи добавлены");
+    await refresh();
+    return;
+  }
+
+  const realSubjects = getRealSubjects();
+  const subjects = realSubjects.length ? realSubjects : [];
+  const subjectByKind = (kind) => subjects.find((subject) => subjectKind(subject) === kind) || null;
+  const baseDate = new Date();
+  const planned = [
+    { title: "ИИ-план: глубокая работа по математике", kind: "math", hour: 10, minute: 0, estimatedMins: 90, priority: "high" },
+    { title: "ИИ-план: практика по физике", kind: "physics", hour: 12, minute: 0, estimatedMins: 75, priority: "medium" },
+    { title: "ИИ-план: повторение английского", kind: "english", hour: 15, minute: 0, estimatedMins: 45, priority: "medium" },
+  ];
+
+  const existingTitles = new Set(state.tasks.map((task) => task.title));
+  const toCreate = planned.filter((item) => !existingTitles.has(item.title));
+  if (!toCreate.length) {
+    toast("ИИ-задачи уже добавлены");
+    return;
+  }
+
+  await Promise.all(toCreate.map((item) => {
+    const subject = subjectByKind(item.kind);
+    return api("/api/tasks", {
+      method: "POST",
+      body: {
+        title: item.title,
+        subjectId: subject?.id || null,
+        dueDate: dateWithTime(baseDate, item.hour, item.minute),
+        priority: item.priority,
+        estimatedMins: item.estimatedMins,
+        focusScore: 80,
+        description: "Создано ИИ-помощником из учебного плана.",
+      },
+    });
+  }));
+  toast("ИИ-задачи добавлены");
+  await refresh();
+}
+
+async function requestAiReply(prompt) {
+  const typedText = String(prompt || "").trim();
+  const attachments = state.aiAttachments.map((file) => ({ ...file }));
+  const text = typedText || (attachments.length ? translateValue("Проанализируй прикрепленные файлы") : "");
+  if (!text || state.aiBusy) return;
+  const history = state.aiConversation.slice(-8);
+  addAiMessage(text, "user", { attachments });
+  const input = document.getElementById("aiPrompt");
+  if (input) input.value = "";
+  clearAiAttachments();
+  setAiBusy(true);
+  const thinking = addAiMessage("ИИ анализирует запрос и учебный контекст", "bot", { track: false, thinking: true });
+
+  try {
+    const result = await api("/api/ai-plan", { method: "POST", body: { prompt: text, history, attachments, language: currentLanguage() } });
+    thinking?.remove();
+    addAiMessage(result.response || "Готово, я собрал ответ по твоему запросу.", "bot");
+    if (result.actions?.autoCreateTasks && Array.isArray(result.actions?.taskDrafts) && result.actions.taskDrafts.length) {
+      await createAiPlanTasks(result.actions.taskDrafts);
+      addAiMessage("Готово, я добавил задачи и обновил список.", "bot", { track: false });
+    } else {
+      addAiActionMessage(result, text);
+    }
+    if (result.aiMode === "unconfigured") toast("Добавь OPENAI_API_KEY");
+    if (result.aiMode === "error") toast("AI API недоступен");
+    if (result.aiMode === "live") toast("Live AI ответил");
+  } catch (error) {
+    thinking?.remove();
+    addAiMessage("Запрос к AI API не прошёл. Проверь сервер, OPENAI_API_KEY и настройки модели, затем попробуй снова.", "bot");
+    toast(error.message || "AI API недоступен");
+    return;
+    addAiMessage("Я могу помочь с этим так: выбери 1-2 главные задачи, поставь их в первый учебный блок, а повторение оставь на конец дня. Если тема сложная, разбей ее на объяснение, пример и короткий тест.", "bot");
+    toast(error.message || "ИИ сейчас недоступен");
+  } finally {
+    setAiBusy(false);
+  }
+}
+
+function fillSubjectSelects() {
+  const options = `<option value="">Без предмета</option>` + getSubjects().map((subject) => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)}</option>`).join("");
+  document.querySelectorAll("#taskSubjectSelect").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = options;
+    if (current) select.value = current;
+  });
+}
+
+function renderUser() {
+  const email = getProfileEmail();
+  const name = getProfileName();
+  document.getElementById("userEmail").textContent = email === "Студент" ? getProfileRole() : email;
+  document.getElementById("userName").textContent = name.length > 14 ? `${name.slice(0, 12)}...` : name;
+  renderAvatars();
+}
+
+function getNotificationItems() {
+  const now = new Date();
+  const activeTasks = getBaseTasks()
+    .map(withSubject)
+    .filter((task) => task.status !== "done");
+  const overdue = activeTasks.filter((task) => task.dueDate && new Date(task.dueDate) < now);
+  const today = activeTasks.filter((task) => task.dueDate && isSameDay(task.dueDate, now));
+  const highPriority = activeTasks.filter((task) => task.priority === "high");
+  const items = [];
+
+  if (overdue.length) {
+    items.push({
+      tone: "red",
+      iconId: "i-bell",
+      title: `${overdue.length} просроченных задач`,
+      text: "Разбери их первыми, чтобы план снова стал чистым.",
+      action: "notification-overdue",
+    });
+  }
+  if (today.length) {
+    const nextTask = today
+      .slice()
+      .sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0))[0];
+    items.push({
+      tone: "blue",
+      iconId: "i-calendar",
+      title: `${today.length} задач на сегодня`,
+      text: nextTask ? `Ближайшая: ${nextTask.title} в ${formatTime(nextTask.dueDate)}.` : "Открой календарь и проверь учебные блоки.",
+      action: "notification-today",
+    });
+  }
+  if (!overdue.length && highPriority.length) {
+    items.push({
+      tone: "amber",
+      iconId: "i-target",
+      title: "Есть высокий приоритет",
+      text: `${highPriority[0].title} лучше поставить первым учебным блоком.`,
+      action: "notification-focus",
+    });
+  }
+  items.push({
+    tone: state.aiStatus?.configured ? "green" : "blue",
+    iconId: "i-spark",
+    title: state.aiStatus?.configured ? "AI-помощник подключен" : "AI-помощник в режиме настройки",
+    text: state.aiStatus?.configured ? "Можно просить планы, объяснения и разбор задач." : "Добавь API-ключ, чтобы ответы генерировались моделью.",
+    action: "notification-ai",
+  });
+
+  return items;
+}
+
+function renderNotifications() {
+  const panel = document.getElementById("notificationPanel");
+  const button = document.querySelector("[data-action='notifications']");
+  if (!panel || !button) return;
+
+  const items = getNotificationItems();
+  const hasTaskAlerts = items.some((item) => ["notification-overdue", "notification-today", "notification-focus"].includes(item.action));
+  button.classList.toggle("has-notifications", hasTaskAlerts);
+  button.setAttribute("aria-expanded", String(state.notificationsOpen));
+  panel.innerHTML = `
+    <div class="notification-head">
+      <strong>Уведомления</strong>
+      <button class="link-button" data-action="notification-close" type="button">Закрыть</button>
+    </div>
+    <div class="notification-list">
+      ${items.map((item) => `
+        <button class="notification-item" data-action="${item.action}" type="button">
+          <span class="plan-icon ${item.tone}">${icon(item.iconId)}</span>
+          <span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <small>${escapeHtml(item.text)}</small>
+          </span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function setNotificationsOpen(open) {
+  state.notificationsOpen = Boolean(open);
+  const panel = document.getElementById("notificationPanel");
+  const button = document.querySelector("[data-action='notifications']");
+  if (panel) panel.classList.toggle("hidden", !state.notificationsOpen);
+  if (button) button.setAttribute("aria-expanded", String(state.notificationsOpen));
+}
+
+function renderAll() {
+  fillSubjectSelects();
+  renderUser();
+  renderNotifications();
+  renderDashboard();
+  renderTasks();
+  renderSubjects();
+  renderCalendar();
+  renderAi();
+  renderProfile();
+  applyLanguage();
+}
+
+async function loadAll() {
+  const endpoints = [
+    api("/api/auth/me"),
+    api("/api/subjects"),
+    api("/api/tasks"),
+    api("/api/goals"),
+    api("/api/sessions"),
+    api("/api/dashboard"),
+    api("/api/focus-mode"),
+    api("/api/analytics"),
+    api("/api/ai-history"),
+    api("/api/ai-status"),
+  ];
+
+  const results = await Promise.allSettled(endpoints);
+  const value = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback;
+  const authError = results[0].status === "rejected" ? results[0].reason : null;
+  if (authError && getToken()) throw authError;
+
+  state.me = value(0, {}).user || state.me;
+  state.subjects = Array.isArray(value(1, [])) ? value(1, []) : [];
+  state.tasks = Array.isArray(value(2, [])) ? value(2, []) : [];
+  state.goals = Array.isArray(value(3, [])) ? value(3, []) : [];
+  state.sessions = Array.isArray(value(4, [])) ? value(4, []) : [];
+  state.dashboard = value(5, null);
+  state.focus = value(6, null);
+  state.analytics = value(7, null);
+  state.aiHistory = Array.isArray(value(8, [])) ? value(8, []) : [];
+  state.aiStatus = value(9, null);
+  renderAll();
+}
+
+async function refresh() {
+  await loadAll();
+}
+
+function routePaths() {
+  return {
+    dashboard: "/dashboard",
+    tasks: "/tasks",
+    subjects: "/subjects",
+    calendar: "/calendar",
+    ai: "/ai",
+    profile: "/profile",
+  };
+}
 
 function getRouteFromPath() {
   const path = window.location.pathname.replace(/\/$/, "") || "/";
   if (path === "/" || path === "/index.html") return "dashboard";
-  return Object.entries(routePaths).find(([, routePath]) => routePath === path)?.[0] || "dashboard";
+  const legacyMap = { "/goals": "calendar", "/insights": "calendar", "/materials": "subjects" };
+  if (legacyMap[path]) return legacyMap[path];
+  return Object.entries(routePaths()).find(([, routePath]) => routePath === path)?.[0] || "dashboard";
 }
 
 function setActiveRoute(route, options = {}) {
-  const nextRoute = routePaths[route] ? route : "dashboard";
-  document.querySelectorAll(".nav-link").forEach((btn) => btn.classList.toggle("active", btn.dataset.route === nextRoute));
-  document.querySelectorAll(".route").forEach((el) => el.classList.add("hidden"));
+  const routes = routePaths();
+  const nextRoute = routes[route] ? route : "dashboard";
+  document.querySelectorAll(".nav-link").forEach((button) => button.classList.toggle("active", button.dataset.route === nextRoute));
+  document.querySelectorAll(".route").forEach((section) => section.classList.add("hidden"));
   document.getElementById(`route-${nextRoute}`)?.classList.remove("hidden");
-  if (options.push !== false) {
-    const nextPath = routePaths[nextRoute];
-    if (nextPath && window.location.pathname !== nextPath) {
-      window.history.pushState({ route: nextRoute }, "", nextPath);
-    }
+  if (nextRoute === "profile") renderProfile();
+  if (options.push !== false && window.location.pathname !== routes[nextRoute]) {
+    window.history.pushState({ route: nextRoute }, "", routes[nextRoute]);
   }
   setSidebarOpen(false);
 }
 
-const materialTopicContent = {
-  sat: {
-    title: "SAT",
-    tag: "международный экзамен",
-    description: "Раздел для подготовки к SAT English: reading и writing. Подходит для поэтапной подготовки, повторения тем и решения пробных вариантов.",
-    links: [
-      { label: "Alikhan Prep", url: "https://alikhanprep.kz/sat-suite-question-bank/" },
-    ],
-    points: [
-      { label: "Фокус", value: "Reading + Writing" },
-      { label: "Формат", value: "Practice tests" },
-      { label: "Подходит для", value: "Поступления" },
-    ],
-  },
-  ielts: {
-    title: "IELTS",
-    links: [
-      { label: "Your IELTS", url: "https://yourielts.ru/ielts-practice-tests" },
-    ],
-    tag: "английский язык",
-    description: "Здесь можно собрать материалы для всех частей IELTS: listening, reading, writing и speaking. Удобно использовать для тренировки формата и регулярной языковой практики.",
-    points: [
-      { label: "Фокус", value: "4 sections" },
-      { label: "Формат", value: "Academic practice" },
-      { label: "Подходит для", value: "English exam" },
-    ],
-  },
-  ege: {
-    title: "ЕГЭ",
-    tag: "школьная подготовка",
-    description: "Раздел для подготовки к ЕГЭ по обязательным и профильным предметам. Можно использовать для конспектов, теории, тематических задач и пробников.",
-    points: [
-      { label: "Фокус", value: "Школьные предметы" },
-      { label: "Формат", value: "Теория + практика" },
-      { label: "Подходит для", value: "Экзамен ЕГЭ" },
-    ],
-  },
-  ent: {
-    title: "ЕНТ",
-    tag: "национальное тестирование",
-    description: "Подборка материалов для подготовки к ЕНТ: теория, практические задания и повторение по профильным направлениям. Удобно для структурированной подготовки по темам.",
-    points: [
-      { label: "Фокус", value: "Темы ЕНТ" },
-      { label: "Формат", value: "Задачи + разбор" },
-      { label: "Подходит для", value: "Тестирование" },
-    ],
-  },
-  "school-books": {
-    title: "Школьные учебники",
-    tag: "базовая программа",
-    description: "Раздел для обычных школьных учебников и дополнительных пособий. Здесь удобно хранить материалы по классам, предметам и темам для повседневной учебы.",
-    points: [
-      { label: "Фокус", value: "База по предметам" },
-      { label: "Формат", value: "Учебники + пособия" },
-      { label: "Подходит для", value: "Ежедневной учебы" },
-    ],
-  },
-};
-
-const satPractice = {
-  loaded: false,
-  loading: null,
-  subject: "rw",
-  subsection: "all",
-  questionIndex: 0,
-  crossoutMode: false,
-  timer: null,
-  bank: { rw: [] },
-  progress: { answers: {}, crossed: {}, marked: {}, elapsed: {}, checks: {} },
-};
-
-const satSources = {
-  rw: { label: "English" },
-};
-
-const satBankUrl = "./data/sat-question-bank.json";
-
-function stripCountLabel(text) {
-  return String(text || "").replace(/\s*\(\d+\)\s*$/, "").trim();
+function setSidebarOpen(open) {
+  const compact = window.matchMedia("(max-width: 1120px)").matches;
+  const active = compact && open;
+  document.body.classList.toggle("menu-open", active);
+  document.getElementById("sidebar")?.setAttribute("aria-hidden", compact ? String(!active) : "false");
+  document.getElementById("sidebarToggleBtn")?.setAttribute("aria-expanded", String(active));
+  document.getElementById("sidebarBackdrop")?.setAttribute("aria-hidden", String(!active));
 }
 
-function cleanSatBody(text) {
-  return String(text || "")
-    .replace(/\r/g, "")
-    .replace(/Student-produced response directions[\s\S]*?Mark for Review/gi, "Mark for Review")
-    .replace(/Section\s+\d,\s*Module\s+\d:\s*(?:Math|Reading and Writing)\s*Directions/gi, "")
-    .replace(/\b\d{1,2}:\d{2}\b/g, "")
-    .replace(/\b\d{2}%\b/g, "")
-    .replace(/\bMark for Review\b/gi, "")
-    .replace(/\b(?:Hide|Calculator|Reference|More|Answer Preview|Examples|Acceptable ways to enter answer|Unacceptable: will NOT receive credit)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function setTheme(theme) {
+  const isLight = theme === "light";
+  document.documentElement.classList.toggle("light-theme", isLight);
+  localStorage.setItem("studyTheme", isLight ? "light" : "dark");
+  document.querySelectorAll(".theme-label").forEach((label) => {
+    label.textContent = isLight ? "Светлая" : "Тёмная";
+  });
+  const profileThemeLabel = document.getElementById("profileThemeLabel");
+  if (profileThemeLabel) profileThemeLabel.textContent = isLight ? "Светлая тема" : "Темная тема";
+  applyLanguage();
 }
 
-function cleanSatChoice(text) {
-  return String(text || "")
-    .replace(/\b(?:Calculator|Reference|More|Hide)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function toggleModal(id, open) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.toggle("hidden", !open);
+  modal.setAttribute("aria-hidden", String(!open));
 }
 
-function extractExplicitSatAnswer(raw) {
-  const text = String(raw || "").replace(/\r/g, " ");
-  const answerMatch = text.match(/(?:Correct\s+Answer|Answer\s+Key|Правильный\s+ответ)\s*[:\-]\s*([A-D]|[-+]?\d+(?:[./]\d+)?)/i);
-  if (!answerMatch) return null;
-  return answerMatch[1].trim().toUpperCase();
-}
-
-function getChoiceMarkers(text, regex) {
-  const markers = [];
-  let match;
-  regex.lastIndex = 0;
-  while ((match = regex.exec(text))) {
-    const prefix = match[1] || "";
-    const label = match[2];
-    markers.push({
-      label,
-      start: match.index + prefix.length,
-      contentStart: match.index + match[0].length,
-    });
-  }
-  return markers;
-}
-
-function chooseChoiceMarkers(markers) {
-  const labels = ["A", "B", "C", "D"];
-  for (let i = 0; i < markers.length; i += 1) {
-    if (markers[i].label !== "A") continue;
-    const chosen = [markers[i]];
-    let nextLabel = 1;
-    for (let j = i + 1; j < markers.length && nextLabel < labels.length; j += 1) {
-      if (markers[j].label === labels[nextLabel]) {
-        chosen.push(markers[j]);
-        nextLabel += 1;
-      }
-    }
-    if (chosen.length === labels.length) return chosen;
-  }
-  return null;
-}
-
-function extractSatChoices(text) {
-  const patterns = [
-    /(^|\s)([ABCD])[\.\)]\s+/g,
-    /(^|\s)\(([ABCD])\)\s*/g,
-    /(^|\s)([ABCD])\s+(?=(?:[A-Z0-9$+\-]|\w[=<>≤≥]))/g,
-  ];
-
-  for (const pattern of patterns) {
-    const markers = chooseChoiceMarkers(getChoiceMarkers(text, pattern));
-    if (!markers) continue;
-    const choices = markers.map((marker, index) => {
-      const next = markers[index + 1];
-      return cleanSatChoice(text.slice(marker.contentStart, next ? next.start : undefined));
-    });
-    if (choices.every(Boolean)) {
-      return {
-        questionText: text.slice(0, markers[0].start).trim(),
-        choices,
-      };
-    }
-  }
-
-  return { questionText: text, choices: [] };
-}
-
-function parseSatQuestionBody(raw) {
-  const correctAnswer = extractExplicitSatAnswer(raw);
-  const cleaned = cleanSatBody(raw);
-  const extracted = extractSatChoices(cleaned);
-  let prompt = extracted.choices.length ? "Выберите лучший ответ." : "Введите ответ.";
-  let passage = extracted.questionText || cleaned;
-  const textStart = passage.search(/\bText 1\b/i);
-
-  if (textStart > 8) {
-    prompt = passage.slice(0, textStart).trim() || prompt;
-    passage = passage.slice(textStart).trim();
-  }
-
-  return {
-    prompt,
-    passage,
-    choices: extracted.choices,
-    correctAnswer,
-    raw: cleaned,
-  };
-}
-
-function parseSatMarkdown(markdown, subject) {
-  const lines = String(markdown || "").replace(/\r/g, "").split("\n");
-  const questions = [];
-  let domain = "";
-  let subsection = "";
-  let current = null;
-
-  function finishCurrent() {
-    if (!current) return;
-    const entry = current;
-    const raw = current.lines.join("\n").trim();
-    current = null;
-    if (!raw || /Нет извлеченных вопросов/i.test(raw)) return;
-    const parsed = parseSatQuestionBody(raw);
-    questions.push({
-      id: `${subject}:${questions.length + 1}`,
-      subject,
-      number: questions.length + 1,
-      sourceNumber: entry.sourceNumber,
-      sourceFile: entry.sourceFile,
-      sourcePage: entry.sourcePage,
-      domain: entry.domain || domain || "SAT",
-      subsection: entry.subsection || subsection || "General",
-      ...parsed,
-    });
-  }
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const domainMatch = trimmed.match(/^##\s+(.+)$/);
-    const subsectionMatch = trimmed.match(/^###\s+(.+)$/);
-    const sourceMatch = trimmed.match(/^\*\*(\d+)\.\s*Источник:\*\*\s*`([^`]+)`,\s*стр\.\s*(\d+)/);
-
-    if (domainMatch && !subsectionMatch) {
-      finishCurrent();
-      domain = stripCountLabel(domainMatch[1]);
-      subsection = "";
-      continue;
-    }
-
-    if (subsectionMatch) {
-      finishCurrent();
-      subsection = stripCountLabel(subsectionMatch[1]);
-      continue;
-    }
-
-    if (sourceMatch) {
-      finishCurrent();
-      current = {
-        sourceNumber: Number(sourceMatch[1]),
-        sourceFile: sourceMatch[2],
-        sourcePage: sourceMatch[3],
-        domain,
-        subsection,
-        lines: [],
-      };
-      continue;
-    }
-
-    if (trimmed === "---") {
-      finishCurrent();
-      continue;
-    }
-
-    if (current) current.lines.push(line);
-  }
-
-  finishCurrent();
-  return questions;
-}
-
-function loadSatProgress() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("satPracticeProgressV1") || "{}");
-    satPractice.progress = {
-      answers: saved.answers || {},
-      crossed: saved.crossed || {},
-      marked: saved.marked || {},
-      elapsed: saved.elapsed || {},
-      checks: saved.checks || {},
-    };
-  } catch {
-    satPractice.progress = { answers: {}, crossed: {}, marked: {}, elapsed: {}, checks: {} };
+function closeConfirmModal(result = false) {
+  toggleModal("confirmModal", false);
+  if (state.confirmResolve) {
+    state.confirmResolve(result);
+    state.confirmResolve = null;
   }
 }
 
-function saveSatProgress() {
-  localStorage.setItem("satPracticeProgressV1", JSON.stringify(satPractice.progress));
-}
-
-async function loadSatPracticeData() {
-  if (satPractice.loaded) return;
-  if (satPractice.loading) return satPractice.loading;
-
-  satPractice.loading = fetch(satBankUrl).then((res) => {
-    if (!res.ok) throw new Error("Не удалось загрузить новый SAT question bank.");
-    return res.json();
-  }).then((payload) => {
-    const questions = Array.isArray(payload.questions) ? payload.questions : [];
-    satPractice.bank.rw = questions.filter((question) => question.subject === "rw");
-    loadSatProgress();
-    satPractice.loaded = true;
-    renderSatPractice();
-  }).catch((error) => {
-    const status = document.getElementById("satPracticeStatus");
-    if (status) status.textContent = error.message || "Не удалось загрузить SAT вопросы.";
+function confirmAction({ title = "Подтвердить действие", text = "Вы уверены?", okText = "Удалить" } = {}) {
+  document.getElementById("confirmTitle").textContent = title;
+  document.getElementById("confirmText").textContent = text;
+  document.getElementById("confirmOkBtn").textContent = okText;
+  toggleModal("confirmModal", true);
+  document.getElementById("confirmCancelBtn")?.focus();
+  return new Promise((resolve) => {
+    state.confirmResolve = resolve;
   });
-
-  return satPractice.loading;
-}
-
-function satGroupKey(domain, subsection) {
-  return `${domain}|||${subsection}`;
-}
-
-function getSatVisibleQuestions() {
-  const questions = satPractice.bank[satPractice.subject] || [];
-  if (satPractice.subsection === "all") return questions;
-  return questions.filter((question) => satGroupKey(question.domain, question.subsection) === satPractice.subsection);
-}
-
-function getCurrentSatQuestion() {
-  const questions = getSatVisibleQuestions();
-  if (!questions.length) return null;
-  if (satPractice.questionIndex >= questions.length) satPractice.questionIndex = 0;
-  if (satPractice.questionIndex < 0) satPractice.questionIndex = questions.length - 1;
-  return questions[satPractice.questionIndex];
-}
-
-function formatSatTime(totalSeconds) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function renderSatText(text) {
-  const paragraphs = String(text || "").split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-  return paragraphs.map((part) => `<p>${escapeHtml(part).replaceAll("\n", "<br>")}</p>`).join("");
-}
-
-function getSatSelectedAnswer(question) {
-  return question ? String(satPractice.progress.answers[question.id] || "").trim() : "";
-}
-
-function getSatChoiceList(question) {
-  const choices = Array.isArray(question?.choices) ? question.choices : [];
-  if (choices.length) return choices;
-  return [];
-}
-
-function normalizeSatAnswer(value) {
-  return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
-}
-
-function isSatAnswerCorrect(selected, correctAnswer) {
-  const selectedText = normalizeSatAnswer(selected);
-  if (!selectedText) return false;
-  return String(correctAnswer || "")
-    .split(/\s*,\s*|\s+or\s+/i)
-    .map(normalizeSatAnswer)
-    .filter(Boolean)
-    .includes(selectedText);
-}
-
-function buildSatQuestionForAi(question) {
-  if (!question) return "";
-  const choiceList = getSatChoiceList(question);
-  const choices = choiceList.length
-    ? choiceList.map((choice, index) => {
-      const letter = String.fromCharCode(65 + index);
-      return `${letter}. ${choice || `Variant ${letter}`}`;
-    }).join("\n")
-    : "Free response question";
-
-  return [
-    `SAT section: ${satSources[question.subject]?.label || "SAT"}`,
-    `Topic: ${question.domain} / ${question.subsection}`,
-    `Question ID: ${question.sourceId || question.id || "unknown"}`,
-    `Source: ${question.sourcePdf || question.sourceFile || "unknown"}`,
-    "",
-    "Question:",
-    question.questionText || question.passage || question.raw,
-    "",
-    "Choices:",
-    choices,
-    "",
-    "Correct answer:",
-    question.correctAnswer || "Not available",
-    "",
-    "Official explanation:",
-    question.rationale || "Not available",
-  ].join("\n");
-}
-
-function renderSatCheckResult(question) {
-  const result = document.getElementById("satCheckResult");
-  if (!result || !question) return;
-  const check = satPractice.progress.checks[question.id];
-  result.className = "sat-check-result hidden";
-  result.textContent = "";
-
-  if (!check) return;
-
-  result.classList.remove("hidden");
-  result.classList.toggle("correct", check.status === "correct");
-  result.classList.toggle("wrong", check.status === "wrong");
-  result.innerHTML = escapeHtml(check.message || "").replaceAll("\n", "<br>");
-}
-
-function renderSatSubsections() {
-  const select = document.getElementById("satSubsectionSelect");
-  if (!select) return;
-
-  const questions = satPractice.bank[satPractice.subject] || [];
-  const currentValue = satPractice.subsection;
-  const grouped = new Map();
-  questions.forEach((question) => {
-    if (!grouped.has(question.domain)) grouped.set(question.domain, new Map());
-    const sections = grouped.get(question.domain);
-    const key = satGroupKey(question.domain, question.subsection);
-    sections.set(key, {
-      label: question.subsection,
-      count: (sections.get(key)?.count || 0) + 1,
-    });
-  });
-
-  select.innerHTML = "";
-  select.append(new Option(`Все вопросы (${questions.length})`, "all"));
-  grouped.forEach((sections, domain) => {
-    const group = document.createElement("optgroup");
-    group.label = domain;
-    sections.forEach((section, key) => {
-      group.append(new Option(`${section.label} (${section.count})`, key));
-    });
-    select.append(group);
-  });
-
-  select.value = [...select.options].some((option) => option.value === currentValue) ? currentValue : "all";
-  satPractice.subsection = select.value;
-}
-
-function renderSatTimer() {
-  const timer = document.getElementById("satTimer");
-  const question = getCurrentSatQuestion();
-  if (!timer || !question) return;
-  timer.textContent = formatSatTime(satPractice.progress.elapsed[question.id] || 0);
-}
-
-function ensureSatTimer() {
-  if (satPractice.timer) return;
-  satPractice.timer = window.setInterval(() => {
-    const panel = document.getElementById("satPracticePanel");
-    const question = getCurrentSatQuestion();
-    if (!panel || panel.classList.contains("hidden") || !question) return;
-    satPractice.progress.elapsed[question.id] = (satPractice.progress.elapsed[question.id] || 0) + 1;
-    renderSatTimer();
-    if (satPractice.progress.elapsed[question.id] % 5 === 0) saveSatProgress();
-  }, 1000);
-}
-
-function renderSatPractice() {
-  const panel = document.getElementById("satPracticePanel");
-  if (!panel || panel.classList.contains("hidden")) return;
-
-  document.querySelectorAll("[data-sat-subject]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.satSubject === satPractice.subject);
-  });
-
-  if (!satPractice.loaded) {
-    const status = document.getElementById("satPracticeStatus");
-    if (status) status.textContent = "Загрузка вопросов...";
-    return;
-  }
-
-  renderSatSubsections();
-  const questions = getSatVisibleQuestions();
-  const question = getCurrentSatQuestion();
-  const shell = document.getElementById("satExamShell");
-  const status = document.getElementById("satPracticeStatus");
-
-  if (!question || !questions.length) {
-    if (shell) shell.hidden = true;
-    if (status) status.textContent = "В этой подсекции пока нет вопросов.";
-    return;
-  }
-
-  if (shell) shell.hidden = false;
-  if (status) {
-    status.textContent = `${satSources[satPractice.subject].label}: ${satPractice.bank[satPractice.subject].length} вопросов`;
-  }
-
-  const answered = questions.filter((item) => satPractice.progress.answers[item.id]).length;
-  const marked = questions.filter((item) => satPractice.progress.marked[item.id]).length;
-  const answeredNode = document.getElementById("satAnsweredCount");
-  const markedNode = document.getElementById("satMarkedCount");
-  if (answeredNode) answeredNode.textContent = `${answered} решено`;
-  if (markedNode) markedNode.textContent = `${marked} отмечено`;
-
-  const meta = document.getElementById("satQuestionMeta");
-  if (meta) {
-    const metaText = `${question.domain} / ${question.subsection} · ${question.topic || "SAT"} ${question.set ? `set ${question.set}` : ""} · ${question.difficulty || "practice"}`;
-    meta.textContent = metaText;
-  }
-
-  const body = document.getElementById("satQuestionBody");
-  if (body) {
-    body.innerHTML = renderSatText(question.questionText || question.passage || question.raw);
-  }
-
-  const prompt = document.getElementById("satQuestionPrompt");
-  const choiceList = getSatChoiceList(question);
-  if (prompt) prompt.textContent = choiceList.length ? "Выберите лучший ответ." : "Введите ответ.";
-
-  const counter = document.getElementById("satQuestionCounter");
-  if (counter) counter.textContent = `${satPractice.questionIndex + 1} / ${questions.length}`;
-
-  const markButton = document.getElementById("satMarkBtn");
-  if (markButton) {
-    const markedCurrent = !!satPractice.progress.marked[question.id];
-    markButton.classList.toggle("active", markedCurrent);
-    markButton.textContent = `${markedCurrent ? "★" : "☆"} Mark`;
-  }
-
-  const crossoutButton = document.getElementById("satCrossoutBtn");
-  if (crossoutButton) crossoutButton.classList.toggle("active", satPractice.crossoutMode);
-
-  const choices = document.getElementById("satChoices");
-  const freeResponse = document.getElementById("satFreeResponse");
-  const freeAnswer = document.getElementById("satFreeAnswer");
-  const selected = satPractice.progress.answers[question.id] || "";
-  const crossed = satPractice.progress.crossed[question.id] || {};
-
-  if (choices) {
-    choices.innerHTML = choiceList.length ? choiceList.map((choice, index) => {
-      const letter = String.fromCharCode(65 + index);
-      const choiceText = String(choice || "").trim() || `Вариант ${letter}`;
-      const className = [
-        "sat-choice",
-        choice ? "" : "text-only-choice",
-        selected === letter ? "selected" : "",
-        crossed[letter] ? "crossed" : "",
-      ].filter(Boolean).join(" ");
-      return `
-        <button class="${className}" type="button" data-sat-choice="${letter}">
-          <span class="sat-choice-letter">${letter}</span>
-          <span class="sat-choice-text">${escapeHtml(choiceText)}</span>
-        </button>
-      `;
-    }).join("") : "";
-  }
-
-  if (freeResponse) freeResponse.classList.toggle("hidden", !!choiceList.length);
-  if (freeAnswer) freeAnswer.value = choiceList.length ? "" : selected;
-
-  renderSatCheckResult(question);
-  renderSatTimer();
-  ensureSatTimer();
-}
-
-async function checkCurrentSatAnswer() {
-  const question = getCurrentSatQuestion();
-  if (!question) return;
-
-  const selected = getSatSelectedAnswer(question);
-  const checkButton = document.getElementById("satCheckBtn");
-  if (checkButton) {
-    checkButton.disabled = true;
-    checkButton.textContent = "Проверяю...";
-  }
-
-  try {
-    if (question.correctAnswer) {
-      const status = isSatAnswerCorrect(selected, question.correctAnswer) ? "correct" : "wrong";
-      satPractice.progress.checks[question.id] = {
-        status,
-        message: [
-          status === "correct" ? "Правильно." : "Пока неверно.",
-          `Правильный ответ: ${question.correctAnswer}`,
-          selected ? `Ваш ответ: ${selected}` : "Ваш ответ не выбран.",
-          question.rationale ? `\nОбъяснение: ${question.rationale}` : "",
-        ].join("\n"),
-      };
-      saveSatProgress();
-      renderSatPractice();
-      return;
-    }
-
-    satPractice.progress.checks[question.id] = {
-      status: "pending",
-      message: "В файле нет готового ключа ответа. Проверяю через ИИ...",
-    };
-    renderSatPractice();
-
-    const aiPrompt = [
-      "Проверь этот SAT-вопрос. Ответь по-русски.",
-      "Сначала напиши строку: Правильный ответ: <буква или значение>.",
-      "Потом коротко объясни почему. Если вопрос поврежден OCR и нельзя надежно решить, так и скажи.",
-      selected ? `Ответ ученика: ${selected}` : "Ответ ученика: не выбран.",
-      "",
-      buildSatQuestionForAi(question),
-    ].join("\n");
-
-    const response = await api("/api/ai-plan", {
-      method: "POST",
-      body: { prompt: aiPrompt, history: [] },
-    });
-
-    satPractice.progress.checks[question.id] = {
-      status: "ai",
-      message: response.response || "ИИ не вернул ответ.",
-    };
-    saveSatProgress();
-    renderSatPractice();
-  } catch (error) {
-    satPractice.progress.checks[question.id] = {
-      status: "wrong",
-      message: `Не удалось проверить ответ: ${error.message || "ошибка"}`,
-    };
-    saveSatProgress();
-    renderSatPractice();
-  } finally {
-    if (checkButton) {
-      checkButton.disabled = false;
-      checkButton.textContent = "Проверить";
-    }
-  }
-}
-
-async function askAiAboutCurrentSatQuestion() {
-  const question = getCurrentSatQuestion();
-  if (!question) return;
-  const selected = getSatSelectedAnswer(question);
-  const prompt = [
-    "Разбери этот SAT-вопрос по-русски.",
-    "Дай правильный ответ и объясни ход решения простыми шагами.",
-    "Если мой выбранный ответ неверный, объясни где ошибка.",
-    selected ? `Мой ответ: ${selected}` : "Я пока не выбрал ответ.",
-    "",
-    buildSatQuestionForAi(question),
-  ].join("\n");
-
-  setActiveRoute("ai");
-  await requestAiReply(prompt);
-}
-
-function bindSatPractice() {
-  document.querySelectorAll("[data-sat-subject]").forEach((button) => {
-    button.addEventListener("click", () => {
-      satPractice.subject = button.dataset.satSubject;
-      satPractice.subsection = "all";
-      satPractice.questionIndex = 0;
-      renderSatPractice();
-    });
-  });
-
-  document.getElementById("satSubsectionSelect")?.addEventListener("change", (event) => {
-    satPractice.subsection = event.target.value;
-    satPractice.questionIndex = 0;
-    renderSatPractice();
-  });
-
-  document.getElementById("satChoices")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-sat-choice]");
-    const question = getCurrentSatQuestion();
-    if (!button || !question) return;
-    const choice = button.dataset.satChoice;
-
-    if (satPractice.crossoutMode) {
-      const crossed = satPractice.progress.crossed[question.id] || {};
-      crossed[choice] = !crossed[choice];
-      satPractice.progress.crossed[question.id] = crossed;
-    } else {
-      satPractice.progress.answers[question.id] = satPractice.progress.answers[question.id] === choice ? "" : choice;
-    }
-
-    saveSatProgress();
-    renderSatPractice();
-  });
-
-  document.getElementById("satFreeAnswer")?.addEventListener("input", (event) => {
-    const question = getCurrentSatQuestion();
-    if (!question) return;
-    satPractice.progress.answers[question.id] = event.target.value.trim();
-    saveSatProgress();
-  });
-
-  document.getElementById("satMarkBtn")?.addEventListener("click", () => {
-    const question = getCurrentSatQuestion();
-    if (!question) return;
-    satPractice.progress.marked[question.id] = !satPractice.progress.marked[question.id];
-    saveSatProgress();
-    renderSatPractice();
-  });
-
-  document.getElementById("satCrossoutBtn")?.addEventListener("click", () => {
-    satPractice.crossoutMode = !satPractice.crossoutMode;
-    renderSatPractice();
-  });
-
-  document.getElementById("satPrevBtn")?.addEventListener("click", () => {
-    satPractice.questionIndex -= 1;
-    saveSatProgress();
-    renderSatPractice();
-  });
-
-  document.getElementById("satNextBtn")?.addEventListener("click", () => {
-    satPractice.questionIndex += 1;
-    saveSatProgress();
-    renderSatPractice();
-  });
-
-  document.getElementById("satClearBtn")?.addEventListener("click", () => {
-    const question = getCurrentSatQuestion();
-    if (!question) return;
-    delete satPractice.progress.answers[question.id];
-    delete satPractice.progress.crossed[question.id];
-    delete satPractice.progress.checks[question.id];
-    satPractice.progress.elapsed[question.id] = 0;
-    saveSatProgress();
-    renderSatPractice();
-  });
-
-  document.getElementById("satCheckBtn")?.addEventListener("click", checkCurrentSatAnswer);
-  document.getElementById("satAskAiBtn")?.addEventListener("click", askAiAboutCurrentSatQuestion);
-}
-
-function renderMaterialTopic(topicKey) {
-  const topic = materialTopicContent[topicKey];
-  const title = document.getElementById("materialTopicTitle");
-  const tag = document.getElementById("materialTopicTag");
-  const description = document.getElementById("materialTopicDescription");
-  const links = document.getElementById("materialTopicLinks");
-  const points = document.getElementById("materialTopicPoints");
-  const detailPanel = document.getElementById("materialTopicDetailPanel");
-  const satPanel = document.getElementById("satPracticePanel");
-  if (!topic || !title || !description || !links || !points) return;
-
-  const isSat = topicKey === "sat";
-  if (detailPanel) detailPanel.classList.toggle("hidden", isSat);
-  if (satPanel) satPanel.classList.toggle("hidden", !isSat);
-  if (isSat) {
-    loadSatPracticeData();
-    renderSatPractice();
-  }
-
-  title.textContent = topic.title;
-  if (tag) tag.textContent = topic.tag;
-  description.textContent = topic.description;
-  links.innerHTML = (topic.links || []).map((item) => `
-    <a class="btn btn-secondary" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${escapeHtml(item.label)}</a>
-  `).join("");
-  links.hidden = !(topic.links || []).length;
-  points.innerHTML = topic.points.map((item) => `
-    <div><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>
-  `).join("");
-
-  document.querySelectorAll(".material-topic-card").forEach((button) => {
-    const active = button.dataset.topic === topicKey;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-}
-
-function initMaterialTopics() {
-  const buttons = document.querySelectorAll(".material-topic-card");
-  if (!buttons.length) return;
-  bindSatPractice();
-
-  buttons.forEach((button) => {
-    button.addEventListener("click", () => renderMaterialTopic(button.dataset.topic));
-  });
-
-  renderMaterialTopic(document.querySelector(".material-topic-card.active")?.dataset.topic || buttons[0].dataset.topic);
-}
-
-function initSidebarMenu() {
-  const toggle = document.getElementById("sidebarToggleBtn");
-  const close = document.getElementById("sidebarCloseBtn");
-  const backdrop = document.getElementById("sidebarBackdrop");
-  if (!toggle || !close || !backdrop) return;
-
-  toggle.addEventListener("click", () => {
-    setSidebarOpen(!document.body.classList.contains("menu-open"));
-  });
-
-  close.addEventListener("click", () => setSidebarOpen(false));
-  backdrop.addEventListener("click", () => setSidebarOpen(false));
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      setSidebarOpen(false);
-      setHeatmapModalOpen(false);
-    }
-  });
-
-  window.addEventListener("resize", () => {
-    setSidebarOpen(document.body.classList.contains("menu-open"));
-  });
-
-  setSidebarOpen(false);
 }
 
 async function handleLogout() {
@@ -976,842 +2117,555 @@ async function handleLogout() {
   window.location.href = "/login";
 }
 
-function fillSubjectSelects() {
-  ["taskSubjectSelect", "goalSubjectSelect", "materialSubjectSelect", "sessionSubjectSelect"].forEach((id) => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    const current = select.value;
-    const firstLabel = select.querySelector("option")?.textContent || "Без предмета";
-    select.innerHTML = `<option value="">${firstLabel}</option>` + state.subjects
-      .map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`)
-      .join("");
-    if (current) select.value = current;
-  });
-}
-
-function renderEmpty(container, text) {
-  container.innerHTML = `<div class="empty">${escapeHtml(text)}</div>`;
-}
-
-function renderAiStatus() {
-  const aiStatus = state.aiStatus;
-  const toolbarMode = document.getElementById("aiToolbarMode");
-  const toolbarModels = document.getElementById("aiToolbarModels");
-  const providerLabel = aiStatus?.provider === "openai"
-    ? "OpenAI"
-    : aiStatus?.provider === "openrouter"
-      ? "OpenRouter"
-      : "Локальный";
-
-  if (toolbarMode) toolbarMode.textContent = aiStatus?.configured ? "Подключён" : "Резервный режим";
-  if (toolbarModels) {
-    toolbarModels.textContent = aiStatus?.configured
-      ? (aiStatus.model || providerLabel)
-      : "Внешняя модель не настроена";
-  }
-}
-
-function setAiBusy(isBusy) {
-  state.aiBusy = isBusy;
-  const submit = document.getElementById("aiSubmitBtn");
-  const smoke = document.getElementById("aiSmokeTestBtn");
-  const prompt = document.getElementById("aiPrompt");
-  const quickButtons = document.querySelectorAll(".ai-quick");
-  if (submit) {
-    submit.disabled = isBusy;
-    submit.textContent = isBusy ? "Думаю..." : "Спросить AI";
-  }
-  if (smoke) smoke.disabled = isBusy;
-  if (prompt) prompt.disabled = isBusy;
-  quickButtons.forEach((button) => { button.disabled = isBusy; });
-}
-
-function getAiRequestHistory() {
-  return state.aiConversation
-    .filter((entry) => entry.role === "user" || entry.role === "assistant")
-    .slice(-8)
-    .map((entry) => ({
-      role: entry.role,
-      content: entry.content,
-    }));
-}
-
-function formatAiMeta(mode, source) {
-  return mode === "live" ? "Live AI" : "Fallback";
-}
-
-async function requestAiReply(prompt, options = {}) {
-  const text = String(prompt || "").trim();
-  if (!text || state.aiBusy) return null;
-
-  const history = getAiRequestHistory();
-  const promptNode = document.getElementById("aiPrompt");
-
-  addAiMessage(text, "user");
-  if (promptNode && options.clearPrompt !== false) promptNode.value = "";
-
-  setAiBusy(true);
-  try {
-    const res = await api("/api/ai-plan", {
-      method: "POST",
-      body: { prompt: text, history },
-    });
-    addAiMessage(res.response, "bot");
-    await refresh();
-    return res;
-  } catch (error) {
-    addAiMessage("Не удалось получить ответ. Попробуйте ещё раз через пару секунд.", "bot", "", { track: false });
-    toast(error.message || "Ошибка AI");
-    return null;
-  } finally {
-    setAiBusy(false);
-  }
-}
-
-function renderTasks() {
-  const container = document.getElementById("taskList");
-  if (!state.tasks.length) return renderEmpty(container, "Пока нет задач.");
-
-  container.innerHTML = state.tasks.map((task) => {
-    const overdue = task.status !== "done" && task.dueDate && new Date(task.dueDate) < new Date();
-    return `
-      <div class="item-card ${overdue ? "danger-outline" : ""}">
-        <div>
-          <div class="item-title">${escapeHtml(task.title)}</div>
-          <div class="item-meta">
-            <span>${task.subject ? escapeHtml(task.subject.name) : "без предмета"}</span>
-            <span>срок: ${escapeHtml(formatDate(task.dueDate))}</span>
-            <span>${task.estimatedMins} мин</span>
-            <span>focus ${task.focusScore}</span>
-          </div>
-          ${task.description ? `<div class="muted" style="margin-top:8px">${escapeHtml(task.description)}</div>` : ""}
-          <div class="badges" style="margin-top:10px">
-            <span class="badge ${task.status}">${task.status}</span>
-            <span class="badge ${task.priority === "high" ? "high" : ""}">${task.priority}</span>
-            ${overdue ? `<span class="badge high">просрочено</span>` : ""}
-          </div>
-        </div>
-        <div class="actions">
-          <button class="btn btn-secondary js-task-status" data-id="${task.id}" data-status="todo">todo</button>
-          <button class="btn btn-secondary js-task-status" data-id="${task.id}" data-status="doing">doing</button>
-          <button class="btn btn-primary js-task-status" data-id="${task.id}" data-status="done">done</button>
-          <button class="btn btn-danger js-task-delete" data-id="${task.id}">удалить</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderSubjects() {
-  const container = document.getElementById("subjectList");
-  if (!state.subjects.length) return renderEmpty(container, "Предметов нет. Тогда аналитика будет плоской.");
-
-  const breakdown = state.analytics?.subjectBreakdown || [];
-  container.innerHTML = state.subjects.map((subject) => {
-    const extra = breakdown.find((x) => x.id === subject.id);
-    return `
-      <div class="item-card">
-        <div>
-          <div class="item-title"><span class="dot" style="background:${subject.color}"></span>${escapeHtml(subject.name)}</div>
-          <div class="item-meta">
-            <span>цель: ${subject.targetMinutes} мин/нед.</span>
-            <span>задач: ${subject._count?.tasks || 0}</span>
-            <span>сессий: ${subject._count?.studySessions || 0}</span>
-            <span>week hit: ${extra ? extra.weeklyTargetHit : 0}%</span>
-          </div>
-          ${subject.description ? `<div class="muted" style="margin-top:8px">${escapeHtml(subject.description)}</div>` : ""}
-          ${extra ? `<div class="progress"><span style="width:${Math.min(100, extra.weeklyTargetHit)}%;background:${subject.color}"></span></div>` : ""}
-        </div>
-        <div class="actions">
-          <button class="btn btn-danger js-subject-delete" data-id="${subject.id}">удалить</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderGoals() {
-  const container = document.getElementById("goalList");
-  if (!state.goals.length) return renderEmpty(container, "Целей нет. Без измеримых целей прогресс не проверяется.");
-
-  container.innerHTML = state.goals.map((goal) => {
-    const progress = goal.targetValue ? Math.min(100, Math.round((goal.progressValue / goal.targetValue) * 100)) : 0;
-    return `
-      <div class="item-card">
-        <div style="flex:1">
-          <div class="item-title">${escapeHtml(goal.title)}</div>
-          <div class="item-meta">
-            <span>${goal.subject ? escapeHtml(goal.subject.name) : "без предмета"}</span>
-            <span>дедлайн: ${goal.targetDate ? escapeHtml(new Date(goal.targetDate).toLocaleDateString("ru-RU")) : "не указан"}</span>
-            <span>статус: ${escapeHtml(goal.status)}</span>
-          </div>
-          <div class="progress"><span style="width:${progress}%"></span></div>
-          <div class="item-meta" style="margin-top:8px"><span>${goal.progressValue}/${goal.targetValue}</span><span>${progress}% выполнено</span></div>
-        </div>
-        <div class="actions">
-          <button class="btn btn-secondary js-goal-progress" data-id="${goal.id}" data-delta="1">+1</button>
-          <button class="btn btn-secondary js-goal-progress" data-id="${goal.id}" data-delta="5">+5</button>
-          <button class="btn btn-danger js-goal-delete" data-id="${goal.id}">удалить</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function materialKindLabel(kind) {
-  return ({
-    note: "Конспект",
-    article: "Статья",
-    video: "Видео",
-    book: "Книга",
-    practice: "Практика",
-    link: "Ссылка",
-  })[kind] || "Материал";
-}
-
-function getMaterialHost(url) {
-  if (!url) return "";
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
-}
-
-function renderMaterials() {
-  const list = document.getElementById("materialList");
-  const highlights = document.getElementById("materialHighlights");
-
-  if (highlights) {
-    if (!state.materials.length) {
-      renderEmpty(highlights, "Пока нет учебных материалов. Добавьте первую ссылку, конспект или практику.");
-    } else {
-      const linkedCount = state.materials.filter((material) => material.url).length;
-      const notesCount = state.materials.filter((material) => material.kind === "note").length;
-      const kinds = Array.from(new Set(state.materials.map((material) => materialKindLabel(material.kind))));
-      const bySubject = state.materials.reduce((map, material) => {
-        const key = material.subject?.id || "none";
-        const current = map.get(key) || {
-          title: material.subject?.name || "Без предмета",
-          count: 0,
-          linked: 0,
-        };
-        current.count += 1;
-        if (material.url) current.linked += 1;
-        map.set(key, current);
-        return map;
-      }, new Map());
-      const groups = Array.from(bySubject.values())
-        .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title, "ru"))
-        .slice(0, 4);
-
-      highlights.innerHTML = `
-        <div class="item-card">
-          <div>
-            <div class="item-title">Всего материалов: ${state.materials.length}</div>
-            <div class="item-meta">
-              <span>Со ссылкой: ${linkedCount}</span>
-              <span>Конспектов: ${notesCount}</span>
-            </div>
-          </div>
-          <div class="badges">
-            ${kinds.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
-          </div>
-        </div>
-        ${groups.map((group) => `
-          <div class="item-card">
-            <div>
-              <div class="item-title">${escapeHtml(group.title)}</div>
-              <div class="item-meta">
-                <span>${group.count} шт.</span>
-                <span>Ссылок: ${group.linked}</span>
-              </div>
-            </div>
-          </div>
-        `).join("")}
-      `;
-    }
-  }
-
-  if (!list) return;
-  if (!state.materials.length) return renderEmpty(list, "Библиотека пуста. Сохраните сюда ссылки, заметки или практические материалы.");
-
-  list.innerHTML = state.materials.map((material) => {
-    const host = getMaterialHost(material.url);
-    return `
-      <div class="item-card">
-        <div style="flex:1">
-          <div class="item-title">${escapeHtml(material.title)}</div>
-          <div class="item-meta">
-            <span>${material.subject ? escapeHtml(material.subject.name) : "Без предмета"}</span>
-            <span>${escapeHtml(materialKindLabel(material.kind))}</span>
-            <span>${escapeHtml(formatDate(material.createdAt))}</span>
-            ${host ? `<span>${escapeHtml(host)}</span>` : ""}
-          </div>
-          ${material.description ? `<div class="muted" style="margin-top:8px">${escapeHtml(material.description)}</div>` : ""}
-        </div>
-        <div class="actions">
-          ${material.url ? `<a class="btn btn-secondary" href="${escapeHtml(material.url)}" target="_blank" rel="noreferrer">Открыть</a>` : ""}
-          <button class="btn btn-danger js-material-delete" data-id="${material.id}">Удалить</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderDashboard() {
-  const d = state.dashboard;
-  const a = state.analytics;
-  if (!d || !a) return;
-
-  document.getElementById("metricTotalTasks").textContent = d.metrics.totalTasks;
-  document.getElementById("metricDoneTasks").textContent = d.metrics.doneTasks;
-  document.getElementById("metricOverdueTasks").textContent = d.metrics.overdueTasks;
-  document.getElementById("metricStreak").textContent = a.streak;
-  const dashboardCompletion = document.getElementById("dashboardCompletion");
-  if (dashboardCompletion) dashboardCompletion.textContent = `${d.metrics.completionRate}% completion`;
-
-  const daily = a.dailyReview;
-  document.getElementById("dailyReviewText").textContent = daily.summary;
-  const dailyVerdict = document.getElementById("dailyVerdict");
-  if (dailyVerdict) dailyVerdict.textContent = daily.verdict;
-  document.getElementById("dailyReviewStats").innerHTML = `
-    <div><span>Минут сегодня</span><strong>${daily.todayMinutes}</strong></div>
-    <div><span>Сделано сегодня</span><strong>${daily.doneToday}</strong></div>
-    <div><span>Просрочено</span><strong>${daily.overdue}</strong></div>
-  `;
-
-  const plan = a.todayPlan;
-  document.getElementById("todayPlanHeadline").textContent = plan.headline;
-  const todayPlanMode = document.getElementById("todayPlanMode");
-  if (todayPlanMode) todayPlanMode.textContent = plan.mode;
-  document.getElementById("todayPlanBlocks").innerHTML = plan.blocks.length ? plan.blocks.map((b) => `
-    <div class="item-card">
-      <div>
-        <div class="item-title">${escapeHtml(b.label)}</div>
-        <div class="item-meta">
-          <span>${b.subject ? escapeHtml(b.subject.name) : "без предмета"}</span>
-          <span>${formatTime(b.start)}–${formatTime(b.end)}</span>
-          <span>${b.duration} мин</span>
-        </div>
-      </div>
-      <div class="badge ${b.type === "recovery" ? "high" : "doing"}">${b.type}</div>
-    </div>
-  `).join("") : `<div class="empty">Открытых задач нет.</div>`;
-
-  const tasksWrap = document.getElementById("dashboardTasks");
-  const sampleTasks = d.tasks.slice(0, 5);
-  tasksWrap.innerHTML = sampleTasks.length ? sampleTasks.map((task) => `
-    <div class="item-card">
-      <div>
-        <div class="item-title">${escapeHtml(task.title)}</div>
-        <div class="item-meta">
-          <span>${task.subject ? escapeHtml(task.subject.name) : "без предмета"}</span>
-          <span>${escapeHtml(formatDate(task.dueDate))}</span>
-        </div>
-      </div>
-      <div class="badges"><span class="badge ${task.status}">${task.status}</span></div>
-    </div>
-  `).join("") : `<div class="empty">Пока нет задач.</div>`;
-
-  const subjectsWrap = document.getElementById("dashboardSubjects");
-  subjectsWrap.innerHTML = d.subjectBreakdown.length ? d.subjectBreakdown.map((subject) => `
-    <div class="item-card">
-      <div style="flex:1">
-        <div class="item-title"><span class="dot" style="background:${subject.color}"></span>${escapeHtml(subject.name)}</div>
-        <div class="item-meta"><span>${subject.doneTasks}/${subject.tasks} задач</span><span>${subject.weekMinutes}/${subject.targetMinutes} мин</span></div>
-        <div class="progress"><span style="width:${Math.min(100, subject.weeklyTargetHit)}%;background:${subject.color}"></span></div>
-      </div>
-    </div>
-  `).join("") : `<div class="empty">Нет предметов.</div>`;
-
-  const goalsWrap = document.getElementById("dashboardGoals");
-  goalsWrap.innerHTML = d.goals.slice(0, 4).length ? d.goals.slice(0, 4).map((goal) => {
-    const progress = goal.targetValue ? Math.min(100, Math.round((goal.progressValue / goal.targetValue) * 100)) : 0;
-    return `
-      <div class="item-card">
-        <div style="flex:1">
-          <div class="item-title">${escapeHtml(goal.title)}</div>
-          <div class="item-meta"><span>${goal.progressValue}/${goal.targetValue}</span><span>${goal.status}</span></div>
-          <div class="progress"><span style="width:${progress}%"></span></div>
-        </div>
-      </div>
-    `;
-  }).join("") : `<div class="empty">Нет целей.</div>`;
-
-  const agenda = document.getElementById("calendarAgenda");
-  agenda.innerHTML = a.calendar.some((x) => x.items.length) ? a.calendar.map((day) => `
-    <div class="calendar-day">
-      <div class="calendar-date">${formatDate(day.date, false)}</div>
-      <div class="calendar-items">
-        ${day.items.length ? day.items.map((item) => `<div class="calendar-item"><span>${escapeHtml(item.title)}</span><strong>${formatTime(item.dueDate)}</strong></div>`).join("") : `<div class="muted">пусто</div>`}
-      </div>
-    </div>
-  `).join("") : `<div class="empty">На 10 дней вперёд дедлайнов нет.</div>`;
-}
-
-function renderFocus() {
-  const f = state.focus;
-  if (!f) return;
-  document.getElementById("focusRiskValue").textContent = f.risk;
-  document.getElementById("focusRecommendation").textContent = f.recommendation;
-  document.getElementById("focusMood").textContent = f.avgMood;
-  document.getElementById("focusDoneToday").textContent = f.todayDone;
-  document.getElementById("focusMinutesToday").textContent = f.todayMinutes;
-}
-
-function getHeatmapSessions(dateValue) {
-  const dayKey = toDayKey(dateValue);
-  return state.sessions
-    .filter((session) => toDayKey(session.startedAt || session.createdAt) === dayKey)
-    .sort((a, b) => new Date(a.startedAt || a.createdAt) - new Date(b.startedAt || b.createdAt));
-}
-
-function setHeatmapSelection(dateValue) {
-  const grid = document.getElementById("heatmapGrid");
-  const heatmap = state.analytics?.heatmap || [];
-  if (!grid || !heatmap.length) return null;
-
-  const selected = heatmap.find((cell) => cell.date === dateValue) || heatmap.at(-1);
-  if (!selected) return null;
-
-  state.selectedHeatmapDate = selected.date;
-  grid.querySelectorAll(".heat-cell").forEach((cell) => {
-    const active = cell.dataset.date === selected.date;
-    cell.classList.toggle("active", active);
-    cell.setAttribute("aria-pressed", String(active));
-  });
-
-  return selected;
-}
-
-function renderHeatmapDetail(dateValue) {
-  const detail = document.getElementById("heatmapModalContent");
-  const selected = setHeatmapSelection(dateValue);
-  if (!detail || !selected) return;
-
-  const sessions = getHeatmapSessions(selected.date);
-  const totalMinutes = sessions.length ? sessions.reduce((sum, session) => sum + session.minutes, 0) : selected.minutes;
-  const sessionLabel = sessions.length === 1 ? "сессия" : sessions.length >= 2 && sessions.length <= 4 ? "сессии" : "сессий";
-
-  detail.innerHTML = `
-    <div class="heatmap-detail-head">
-      <div>
-        <div class="item-title" id="heatmapModalTitle">${formatDate(selected.date, false)}</div>
-        <div class="muted">Подробности по выбранному дню</div>
-      </div>
-      <div class="heatmap-detail-stats">
-        <span>${totalMinutes} мин</span>
-        <span>${sessions.length} ${sessionLabel}</span>
-      </div>
-    </div>
-    ${sessions.length ? `
-      <div class="heatmap-session-list">
-        ${sessions.map((session) => `
-          <div class="heatmap-session-item">
-            <div class="item-title">${session.subject ? escapeHtml(session.subject.name) : "Без предмета"}</div>
-            <div class="item-meta">
-              <span>${formatTime(session.startedAt || session.createdAt)}–${formatTime(session.endedAt || session.createdAt)}</span>
-              <span>${session.minutes} мин</span>
-              <span>настроение ${session.mood}</span>
-            </div>
-            ${session.note ? `<div class="muted" style="margin-top:8px">${escapeHtml(session.note)}</div>` : ""}
-          </div>
-        `).join("")}
-      </div>
-    ` : `
-      <div class="muted">За этот день подробных сессий в загруженном списке нет, но суммарная активность составила ${selected.minutes} мин.</div>
-    `}
-  `;
-  setHeatmapModalOpen(true);
-}
-
-function renderInsights() {
-  const a = state.analytics;
-  if (!a) return;
-
-  const heat = document.getElementById("heatmapGrid");
-  const heatmapDates = a.heatmap.map((cell) => new Date(cell.date));
-  const weekdayLabels = a.heatmap.slice(0, 7).map((cell) => formatWeekday(cell.date));
-  heat.innerHTML = `
-    <div class="heat-calendar-title">${escapeHtml(formatMonthTitle(heatmapDates))}</div>
-    ${weekdayLabels.map((day) => `<div class="heat-weekday">${escapeHtml(day)}</div>`).join("")}
-    ${a.heatmap.map((cell) => {
-    const date = new Date(cell.date);
-    const dayNumber = Number.isNaN(date.getTime()) ? "" : date.getDate();
-    return `
-    <button type="button" class="heat-cell level-${cell.level}" data-date="${cell.date}" aria-pressed="false" title="${formatDate(cell.date, false)} · ${cell.minutes} мин">
-      <span class="heat-date-number">${dayNumber}</span>
-      ${cell.minutes ? `<span class="heat-cell-minutes">${cell.minutes}м</span>` : ""}
-      <span class="sr-only">${formatDate(cell.date, false)} · ${cell.minutes} мин</span>
-    </button>
-    `;
-  }).join("")}
-  `;
-  const selectedHeatmapDate = state.selectedHeatmapDate && a.heatmap.some((cell) => cell.date === state.selectedHeatmapDate)
-    ? state.selectedHeatmapDate
-    : (a.heatmap.slice().reverse().find((cell) => cell.minutes > 0)?.date || a.heatmap.at(-1)?.date || null);
-  if (selectedHeatmapDate) setHeatmapSelection(selectedHeatmapDate);
-
-  const bars = document.getElementById("weeklyTrendChart");
-  const max = Math.max(1, ...a.weeklyTrend.map((x) => x.minutes));
-  bars.innerHTML = a.weeklyTrend.map((week) => `
-    <div class="trend-card ${week.minutes === 0 ? "zero" : ""}">
-      <div class="trend-card-head">
-        <span class="trend-date">${escapeHtml(week.label)}</span>
-        <span class="trend-minutes">${week.minutes} мин</span>
-      </div>
-      <div class="trend-bar-shell">
-        <span class="trend-bar-fill" style="height:${Math.max(12, Math.round((week.minutes / max) * 148))}px"></span>
-      </div>
-    </div>
-  `).join("");
-
-  const sessionList = document.getElementById("sessionList");
-  sessionList.innerHTML = a.recentSessions.length ? a.recentSessions.map((s) => `
-    <div class="item-card">
-      <div>
-        <div class="item-title">${s.subject ? escapeHtml(s.subject.name) : "без предмета"}</div>
-        <div class="item-meta"><span>${formatDate(s.createdAt)}</span><span>${s.minutes} мин</span><span>mood ${s.mood}</span></div>
-        ${s.note ? `<div class="muted" style="margin-top:8px">${escapeHtml(s.note)}</div>` : ""}
-      </div>
-    </div>
-  `).join("") : `<div class="empty">Сессий пока нет.</div>`;
-
-  const risks = [];
-  if (a.backlog.overdue > 0) risks.push({ title: "Просрочка", text: `Есть ${a.backlog.overdue} просроченных задач. Это ломает планирование.` });
-  if (a.dailyReview.weakSubject) risks.push({ title: "Недокормленный предмет", text: `${a.dailyReview.weakSubject.name} отстаёт по weekly target.` });
-  if ((state.focus?.risk || 0) >= 70) risks.push({ title: "Риск перегруза", text: "Нагрузка объективно высокая. Нужен режим сужения фронта работ." });
-  if (a.streak === 0) risks.push({ title: "Нет серии дней", text: "Дисциплина не закреплена. Один рывок не заменяет рутину." });
-  if (!risks.length) risks.push({ title: "Состояние устойчивое", text: "Критических проблем не видно. Можно усиливать качество, а не объём." });
-
-  const riskWrap = document.getElementById("riskCards");
-  riskWrap.innerHTML = risks.map((r) => `
-    <div class="item-card">
-      <div>
-        <div class="item-title">${escapeHtml(r.title)}</div>
-        <div class="muted">${escapeHtml(r.text)}</div>
-      </div>
-    </div>
-  `).join("");
-}
-
-function addAiMessage(text, role = "bot", meta = "", options = {}) {
-  const wrap = document.getElementById("aiMessages");
-  if (!wrap) return;
-  const normalizedRole = role === "user" ? "user" : "bot";
-  if (options.track !== false) {
-    state.aiConversation.push({
-      role: normalizedRole === "user" ? "user" : "assistant",
-      content: String(text || ""),
-    });
-  }
-  const div = document.createElement("div");
-  div.className = `msg ${normalizedRole}`;
-  div.innerHTML = `${meta ? `<div class="chat-meta">${escapeHtml(meta)}</div>` : ""}${escapeHtml(text).replaceAll("\n", "<br>")}`;
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
-}
-
-function renderAiHistory() {
-  const wrap = document.getElementById("aiHistory");
-  if (!wrap) return;
-  if (!state.aiHistory.length) return renderEmpty(wrap, "Ответов пока нет.");
-  wrap.innerHTML = state.aiHistory.map((item) => `
-    <div class="item-card vertical">
-      <div class="item-title">${escapeHtml(item.prompt)}</div>
-      <div class="muted">${escapeHtml(item.response).replaceAll("\n", "<br>")}</div>
-      <div class="item-meta"><span>${formatDate(item.createdAt)}</span><span>${escapeHtml(item.aiMode || "fallback")}</span><span>${escapeHtml((item.aiSource || "local").replace("openai:", "").replace("openrouter:", ""))}</span></div>
-    </div>
-  `).join("");
-}
-
-async function loadAll() {
-  const [me, subjects, tasks, goals, materials, sessions, dashboard, focus, analytics, aiHistory, aiStatus] = await Promise.all([
-    api("/api/auth/me"),
-    api("/api/subjects"),
-    api("/api/tasks"),
-    api("/api/goals"),
-    api("/api/materials"),
-    api("/api/sessions"),
-    api("/api/dashboard"),
-    api("/api/focus-mode"),
-    api("/api/analytics"),
-    api("/api/ai-history"),
-    api("/api/ai-status"),
-  ]);
-  state.me = me.user;
-  state.subjects = subjects;
-  state.tasks = tasks;
-  state.goals = goals;
-  state.materials = materials;
-  state.sessions = sessions;
-  state.dashboard = dashboard;
-  state.focus = focus;
-  state.analytics = analytics;
-  state.aiHistory = aiHistory;
-  state.aiStatus = aiStatus;
-
-  const logoutLabel = "\u0412\u044b\u0439\u0442\u0438";
-  const logoutBtn = document.getElementById("logoutBtn");
-  const logoutMenuBtn = document.getElementById("logoutMenuBtn");
-  if (logoutBtn) logoutBtn.textContent = logoutLabel;
-  if (logoutMenuBtn) logoutMenuBtn.textContent = logoutLabel;
-  document.getElementById("userEmail").textContent = state.me.email;
-  const mobileEmail = document.getElementById("userEmailMenu");
-  if (mobileEmail) mobileEmail.textContent = state.me.email;
-  renderAiStatus();
-  fillSubjectSelects();
-  renderTasks();
-  renderSubjects();
-  renderGoals();
-  renderMaterials();
-  renderDashboard();
-  renderFocus();
-  renderInsights();
-  renderAiHistory();
-}
-
-async function refresh() {
-  await loadAll();
-}
-
-function bindNavigation() {
-  document.querySelectorAll(".nav-link").forEach((btn) => {
-    btn.addEventListener("click", () => setActiveRoute(btn.dataset.route));
+function bindEvents() {
+  document.querySelectorAll(".nav-link").forEach((button) => {
+    button.addEventListener("click", () => setActiveRoute(button.dataset.route));
   });
   window.addEventListener("popstate", () => setActiveRoute(getRouteFromPath(), { push: false }));
-}
 
-function bindForms() {
-  document.getElementById("taskForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    await api("/api/tasks", {
-      method: "POST",
-      body: {
-        title: form.get("title"),
-        subjectId: form.get("subjectId") || null,
-        dueDate: form.get("dueDate") || null,
-        priority: form.get("priority"),
-        estimatedMins: Number(form.get("estimatedMins") || 30),
-        focusScore: Number(form.get("focusScore") || 60),
-        description: form.get("description"),
-      },
+  document.getElementById("sidebarToggleBtn")?.addEventListener("click", () => setSidebarOpen(!document.body.classList.contains("menu-open")));
+  document.getElementById("sidebarCloseBtn")?.addEventListener("click", () => setSidebarOpen(false));
+  document.getElementById("sidebarBackdrop")?.addEventListener("click", () => setSidebarOpen(false));
+  window.addEventListener("resize", () => setSidebarOpen(document.body.classList.contains("menu-open")));
+
+  document.getElementById("themeToggleBtn")?.addEventListener("click", () => {
+    const next = document.documentElement.classList.contains("light-theme") ? "dark" : "light";
+    setTheme(next);
+  });
+  document.getElementById("languageToggleBtn")?.addEventListener("click", () => {
+    setLanguage(currentLanguage() === "en" ? "ru" : "en");
+  });
+
+  document.getElementById("globalSearch")?.addEventListener("input", (event) => {
+    state.query = event.target.value;
+    state.activeSearchIndex = 0;
+    renderDashboard();
+    renderTasks();
+    renderSubjects();
+    renderSearchResults();
+  });
+  document.getElementById("globalSearch")?.addEventListener("focus", () => {
+    renderSearchResults();
+  });
+  document.getElementById("globalSearch")?.addEventListener("keydown", async (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      state.activeSearchIndex = Math.min(state.searchResults.length - 1, state.activeSearchIndex + 1);
+      renderSearchResults();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      state.activeSearchIndex = Math.max(0, state.activeSearchIndex - 1);
+      renderSearchResults();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      await activateSearchResult();
+    } else if (event.key === "Escape") {
+      document.getElementById("searchResults")?.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("prevMonthBtn")?.addEventListener("click", () => {
+    state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() - 1, 1);
+    renderCalendar();
+  });
+  document.getElementById("nextMonthBtn")?.addEventListener("click", () => {
+    state.calendarCursor = new Date(state.calendarCursor.getFullYear(), state.calendarCursor.getMonth() + 1, 1);
+    renderCalendar();
+  });
+
+  document.querySelectorAll("[data-calendar-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.calendarMode = button.dataset.calendarMode || "month";
+      renderCalendar();
     });
-    e.target.reset();
-    document.querySelector('#taskForm [name="priority"]').value = 'medium';
-    document.querySelector('#taskForm [name="estimatedMins"]').value = 30;
-    document.querySelector('#taskForm [name="focusScore"]').value = 60;
-    toast("Задача добавлена");
   });
 
-  document.getElementById("subjectForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    await api("/api/subjects", {
-      method: "POST",
-      body: {
-        name: form.get("name"),
-        color: form.get("color"),
-        targetMinutes: Number(form.get("targetMinutes") || 240),
-        description: form.get("description"),
-      },
+  document.querySelectorAll(".task-filter").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.taskFilter = button.dataset.filter;
+      document.querySelectorAll(".task-filter").forEach((filter) => filter.classList.toggle("active", filter === button));
+      renderTasks();
     });
-    e.target.reset();
-    document.querySelector('#subjectForm [name="color"]').value = '#5b8cff';
-    document.querySelector('#subjectForm [name="targetMinutes"]').value = 240;
-    toast("Предмет добавлен");
-    await refresh();
   });
 
-  document.getElementById("goalForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    await api("/api/goals", {
-      method: "POST",
-      body: {
-        title: form.get("title"),
-        subjectId: form.get("subjectId") || null,
-        targetValue: Number(form.get("targetValue") || 10),
-        progressValue: Number(form.get("progressValue") || 0),
-        targetDate: form.get("targetDate") || null,
-        description: form.get("description"),
-      },
-    });
-    e.target.reset();
-    document.querySelector('#goalForm [name="targetValue"]').value = 10;
-    document.querySelector('#goalForm [name="progressValue"]').value = 0;
-    toast("Цель добавлена");
-    await refresh();
+  document.getElementById("aiForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await requestAiReply(document.getElementById("aiPrompt")?.value);
   });
-
-  document.getElementById("materialForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    await api("/api/materials", {
-      method: "POST",
-      body: {
-        title: form.get("title"),
-        subjectId: form.get("subjectId") || null,
-        kind: form.get("kind"),
-        url: form.get("url"),
-        description: form.get("description"),
-      },
-    });
-    e.target.reset();
-    document.querySelector('#materialForm [name="kind"]').value = "note";
-    toast("Материал сохранён");
-    await refresh();
-  });
-
-  document.getElementById("sessionForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    await api("/api/sessions", {
-      method: "POST",
-      body: {
-        subjectId: form.get("subjectId") || null,
-        minutes: Number(form.get("minutes") || 25),
-        mood: Number(form.get("mood") || 3),
-        note: form.get("note"),
-      },
-    });
-    e.target.reset();
-    document.querySelector('#sessionForm [name="minutes"]').value = 25;
-    document.querySelector('#sessionForm [name="mood"]').value = 3;
-    toast("Сессия записана");
-    await refresh();
-  });
-
-  document.getElementById("aiForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const prompt = document.getElementById("aiPrompt")?.value.trim();
-    if (!prompt) return;
-    await requestAiReply(prompt);
-  });
-  document.getElementById("aiPrompt")?.addEventListener("keydown", (event) => {
+  document.getElementById("aiPrompt")?.addEventListener("keydown", async (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      document.getElementById("aiForm")?.requestSubmit();
+      await requestAiReply(event.currentTarget.value);
     }
   });
-}
+  document.querySelector(".attach-button")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.aiBusy) return;
+    document.getElementById("aiFileInput")?.click();
+  });
+  document.getElementById("aiFileInput")?.addEventListener("change", async (event) => {
+    await addAiFiles(event.currentTarget.files);
+    event.currentTarget.value = "";
+  });
+  document.getElementById("aiPrompt")?.addEventListener("paste", handleAiPaste);
+  document.getElementById("route-ai")?.addEventListener("paste", handleAiPaste);
+  document.addEventListener("paste", async (event) => {
+    const route = document.getElementById("route-ai");
+    if (!route || route.classList.contains("hidden")) return;
+    if (event.target.closest?.("#aiPrompt, #aiForm, #route-ai")) return;
+    await handleAiPaste(event);
+  });
 
-function bindActions() {
-  document.body.addEventListener("click", async (e) => {
-    const taskStatus = e.target.closest(".js-task-status");
-    if (taskStatus) {
-      await api(`/api/tasks/${taskStatus.dataset.id}`, { method: "PATCH", body: { status: taskStatus.dataset.status } });
-      toast("Статус обновлён");
-      return refresh();
+  document.getElementById("taskForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
+    const taskId = String(form.get("taskId") || "");
+    const payload = {
+      title: form.get("title"),
+      subjectId: form.get("subjectId") || null,
+      dueDate: form.get("dueDate") || null,
+      priority: form.get("priority") || "medium",
+      estimatedMins: Number(form.get("estimatedMins") || 45),
+      focusScore: Number(form.get("focusScore") || 70),
+      description: form.get("description") || "",
+    };
+    try {
+      if (taskId) {
+        await saveTask(taskId, payload);
+      } else {
+        await api("/api/tasks", { method: "POST", body: payload });
+        await refresh();
+      }
+      formEl.reset();
+      toggleModal("taskModal", false);
+      toast(taskId ? "Задача обновлена" : "Задача добавлена");
+    } catch (error) {
+      toast(error.message || "Не удалось сохранить задачу");
+    }
+  });
+
+  document.getElementById("subjectForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
+    const subjectId = String(form.get("subjectId") || "");
+    const payload = {
+      name: form.get("name"),
+      color: form.get("color") || "#4f8cff",
+      targetMinutes: Number(form.get("targetMinutes") || 240),
+      description: form.get("description") || "",
+    };
+    try {
+      if (subjectId) {
+        const updated = await api(`/api/subjects/${subjectId}`, { method: "PATCH", body: payload });
+        if (updated?.id) state.selectedSubjectId = updated.id;
+      } else {
+        const created = await api("/api/subjects", { method: "POST", body: payload });
+        if (created?.id) state.selectedSubjectId = created.id;
+        state.subjectTab = "materials";
+      }
+      formEl.reset();
+      toggleModal("subjectModal", false);
+      toast(subjectId ? "Предмет обновлен" : "Предмет добавлен");
+      await refresh();
+    } catch (error) {
+      toast(error.message || (subjectId ? "Не удалось обновить предмет" : "Не удалось добавить предмет"));
+    }
+  });
+
+  document.getElementById("profileForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const displayName = String(form.get("displayName") || "").trim() || getDefaultProfileName();
+    const role = String(form.get("role") || "Студент").trim() || "Студент";
+    localStorage.setItem("studyProfileName", displayName);
+    localStorage.setItem("studyProfileRole", role);
+    renderUser();
+    renderProfile();
+    toast("Профиль обновлен");
+  });
+  document.getElementById("profileAvatarInput")?.addEventListener("change", (event) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("Выбери файл изображения");
+      event.currentTarget.value = "";
+      return;
+    }
+    if (file.size > 1_500_000) {
+      toast("Картинка слишком большая, выбери файл до 1.5 МБ");
+      event.currentTarget.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      localStorage.setItem("studyProfileAvatar", String(reader.result || ""));
+      renderUser();
+      renderProfile();
+      toast("Аватар обновлен");
+    });
+    reader.readAsDataURL(file);
+  });
+  document.getElementById("profileAvatarRemoveBtn")?.addEventListener("click", () => {
+    localStorage.removeItem("studyProfileAvatar");
+    const input = document.getElementById("profileAvatarInput");
+    if (input) input.value = "";
+    renderUser();
+    renderProfile();
+    toast("Аватар сброшен");
+  });
+
+  document.body.addEventListener("click", async (event) => {
+    if (!event.target.closest(".notification-wrap")) {
+      setNotificationsOpen(false);
     }
 
-    const taskDelete = e.target.closest(".js-task-delete");
-    if (taskDelete) {
-      await api(`/api/tasks/${taskDelete.dataset.id}`, { method: "DELETE" });
-      toast("Задача удалена");
-      return refresh();
+    const jump = event.target.closest(".nav-jump");
+    if (jump) {
+      setActiveRoute(jump.dataset.route);
+      return;
     }
 
-    const subjectDelete = e.target.closest(".js-subject-delete");
-    if (subjectDelete) {
-      await api(`/api/subjects/${subjectDelete.dataset.id}`, { method: "DELETE" });
-      toast("Предмет удалён");
-      return refresh();
+    const searchItem = event.target.closest("[data-search-index]");
+    if (searchItem) {
+      await activateSearchResult(Number(searchItem.dataset.searchIndex || 0));
+      return;
     }
 
-    const goalProgress = e.target.closest(".js-goal-progress");
-    if (goalProgress) {
-      const goal = state.goals.find((g) => g.id === goalProgress.dataset.id);
-      if (!goal) return;
-      const next = (goal.progressValue || 0) + Number(goalProgress.dataset.delta || 1);
-      const status = next >= goal.targetValue ? "done" : goal.status;
-      await api(`/api/goals/${goal.id}`, { method: "PATCH", body: { progressValue: next, status } });
-      toast("Прогресс цели обновлён");
-      return refresh();
+    const subjectTab = event.target.closest("[data-subject-tab]");
+    if (subjectTab) {
+      state.subjectTab = subjectTab.dataset.subjectTab || "tests";
+      renderSubjects();
+      return;
     }
 
-    const goalDelete = e.target.closest(".js-goal-delete");
-    if (goalDelete) {
-      await api(`/api/goals/${goalDelete.dataset.id}`, { method: "DELETE" });
-      toast("Цель удалена");
-      return refresh();
+    const action = event.target.closest("[data-action]");
+    if (action) {
+      const actionName = action.dataset.action;
+      if (actionName === "pro") {
+        toast("Pro-раздел скоро будет доступен");
+        return;
+      }
+      if (actionName === "notifications") {
+        renderNotifications();
+        setNotificationsOpen(!state.notificationsOpen);
+        return;
+      }
+      if (actionName === "notification-close") {
+        setNotificationsOpen(false);
+        return;
+      }
+      if (actionName === "notification-overdue") {
+        state.taskFilter = "overdue";
+        document.querySelectorAll(".task-filter").forEach((filter) => filter.classList.toggle("active", filter.dataset.filter === "overdue"));
+        setNotificationsOpen(false);
+        setActiveRoute("tasks");
+        renderTasks();
+        return;
+      }
+      if (actionName === "notification-today") {
+        state.calendarMode = "day";
+        state.selectedDay = dayKey(new Date());
+        setNotificationsOpen(false);
+        setActiveRoute("calendar");
+        renderCalendar();
+        return;
+      }
+      if (actionName === "notification-focus") {
+        setNotificationsOpen(false);
+        setActiveRoute("ai");
+        await requestAiReply("Помоги выбрать первую задачу на сегодня с учетом приоритета и дедлайна");
+        return;
+      }
+      if (actionName === "notification-ai") {
+        setNotificationsOpen(false);
+        setActiveRoute("ai");
+        return;
+      }
+      if (actionName === "profile-open") {
+        document.getElementById("profileMenu")?.classList.add("hidden");
+        setActiveRoute("profile");
+        renderProfile();
+        return;
+      }
+      if (actionName === "profile-open-tasks") {
+        setActiveRoute("tasks");
+        renderTasks();
+        return;
+      }
+      if (actionName === "profile-open-ai") {
+        setActiveRoute("ai");
+        return;
+      }
+      if (actionName === "profile-create-task") {
+        openTaskModal();
+        return;
+      }
+      if (actionName === "profile-open-calendar") {
+        state.calendarMode = "month";
+        setActiveRoute("calendar");
+        renderCalendar();
+        return;
+      }
+      if (actionName === "profile-theme") {
+        const next = document.documentElement.classList.contains("light-theme") ? "dark" : "light";
+        setTheme(next);
+        renderProfile();
+        return;
+      }
+      if (actionName === "profile-review") {
+        setActiveRoute("ai");
+        await requestAiReply("Сделай краткий обзор моего профиля обучения: прогресс, задачи, фокус и главный следующий шаг");
+        return;
+      }
+      if (actionName === "metric-tasks") {
+        state.taskFilter = "all";
+        document.querySelectorAll(".task-filter").forEach((filter) => filter.classList.toggle("active", filter.dataset.filter === "all"));
+        setActiveRoute("tasks");
+        renderTasks();
+        return;
+      }
+      if (actionName === "metric-focus") {
+        setActiveRoute("ai");
+        await requestAiReply("Оцени мой фокус на сегодня и предложи 3 коротких шага, чтобы учиться без перегруза");
+        return;
+      }
+      if (actionName === "metric-progress") {
+        setActiveRoute("subjects");
+        renderSubjects();
+        return;
+      }
+      if (actionName === "today-menu") {
+        setActiveRoute("ai");
+        await requestAiReply("Сделай краткий обзор сегодняшних задач и скажи, с чего начать");
+        return;
+      }
+      if (actionName === "task-menu" || actionName === "all-tasks") {
+        state.taskFilter = "all";
+        document.querySelectorAll(".task-filter").forEach((filter) => filter.classList.toggle("active", filter.dataset.filter === "all"));
+        setActiveRoute("tasks");
+        renderTasks();
+        return;
+      }
+      if (actionName === "full-day") {
+        state.calendarMode = "day";
+        setActiveRoute("calendar");
+        renderCalendar();
+        return;
+      }
+      if (actionName === "schedule-prev" || actionName === "schedule-next") {
+        state.calendarSideView = actionName === "schedule-next" ? "week" : "day";
+        renderScheduleSwitcher();
+        return;
+      }
+      if (actionName === "all-tests") {
+        state.subjectTab = "tests";
+        renderSubjects();
+        toast("Показаны все тесты по выбранному предмету");
+        return;
+      }
+      if (actionName === "start-test" || actionName === "event-ai") {
+        setActiveRoute("ai");
+        await requestAiReply(action.dataset.prompt || action.textContent);
+        return;
+      }
+      if (actionName === "create-ai-plan-tasks") {
+        try {
+          await createAiPlanTasks();
+        } catch (error) {
+          toast(error.message || "Не удалось добавить ИИ-задачи");
+        }
+        return;
+      }
+      if (actionName === "ai-send") {
+        await requestAiReply(document.getElementById("aiPrompt")?.value);
+        return;
+      }
+      if (actionName === "ai-remove-attachment") {
+        removeAiAttachment(action.dataset.id);
+        return;
+      }
+      if (actionName === "plan-item") {
+        const task = getTaskById(action.dataset.id);
+        if (task) {
+          openTaskModal(task);
+        } else {
+          state.calendarMode = "day";
+          setActiveRoute("calendar");
+          renderCalendar();
+        }
+        return;
+      }
+      if (actionName === "subject-progress") {
+        state.selectedSubjectId = action.dataset.subjectId;
+        setActiveRoute("subjects");
+        renderSubjects();
+        return;
+      }
+      if (actionName === "task-status") {
+        try {
+          await saveTask(action.dataset.id, { status: action.dataset.status });
+          toast("Статус обновлен");
+        } catch (error) {
+          toast(error.message || "Не удалось обновить задачу");
+        }
+        return;
+      }
+      if (actionName === "subject-edit") {
+        const subject = getSubjectById(action.dataset.subjectId || state.selectedSubjectId);
+        if (subject && !isDemoId(subject.id)) openSubjectModal(subject);
+        return;
+      }
+      if (actionName === "subject-delete") {
+        const subjectId = action.dataset.subjectId || document.getElementById("subjectId")?.value || state.selectedSubjectId;
+        const subject = getSubjectById(subjectId);
+        if (!subject || isDemoId(subject.id)) {
+          toast("Этот предмет нельзя удалить");
+          return;
+        }
+        const confirmed = await confirmAction({
+          title: "Удалить предмет?",
+          text: `Предмет «${subject.name}» исчезнет из списка. Связанные задачи останутся без предмета.`,
+          okText: "Удалить",
+        });
+        if (!confirmed) return;
+        try {
+          await removeSubject(subject.id);
+          toggleModal("subjectModal", false);
+          toast("Предмет удален");
+        } catch (error) {
+          toast(error.message || "Не удалось удалить предмет");
+        }
+        return;
+      }
+      if (actionName === "task-edit") {
+        const task = getTaskById(action.dataset.id);
+        if (task) openTaskModal(task);
+        return;
+      }
+      if (actionName === "task-delete") {
+        const taskId = action.dataset.id || document.getElementById("taskId")?.value;
+        const confirmed = await confirmAction({
+          title: "Удалить задачу?",
+          text: "Задача исчезнет из списка. Это действие нельзя будет отменить.",
+          okText: "Удалить",
+        });
+        if (!confirmed) return;
+        try {
+          await removeTask(taskId);
+          toggleModal("taskModal", false);
+          toast("Задача удалена");
+        } catch (error) {
+          toast(error.message || "Не удалось удалить задачу");
+        }
+        return;
+      }
     }
 
-    const materialDelete = e.target.closest(".js-material-delete");
-    if (materialDelete) {
-      await api(`/api/materials/${materialDelete.dataset.id}`, { method: "DELETE" });
-      toast("Материал удалён");
-      return refresh();
+    if (event.target.closest(".open-task-modal")) {
+      openTaskModal();
+      return;
+    }
+    if (event.target.closest(".open-subject-modal")) {
+      openSubjectModal();
+      return;
+    }
+    if (event.target.closest(".close-modal")) {
+      toggleModal("taskModal", false);
+      toggleModal("subjectModal", false);
+      return;
+    }
+    if (event.target.id === "confirmModal") {
+      closeConfirmModal(false);
+      return;
+    }
+    if (event.target.id === "taskModal") toggleModal("taskModal", false);
+    if (event.target.id === "subjectModal") toggleModal("subjectModal", false);
+
+    const taskRow = event.target.closest(".task-item[data-task-id]");
+    if (taskRow && !event.target.closest("button")) {
+      const task = getTaskById(taskRow.dataset.taskId);
+      if (task) openTaskModal(task);
+      return;
     }
 
-    const quick = e.target.closest(".ai-quick");
+    const subjectCard = event.target.closest(".subject-card");
+    if (subjectCard) {
+      state.selectedSubjectId = subjectCard.dataset.subjectId;
+      renderSubjects();
+      return;
+    }
+
+    const calendarCell = event.target.closest(".calendar-cell");
+    if (calendarCell) {
+      state.selectedDay = calendarCell.dataset.date;
+      renderCalendar();
+      return;
+    }
+
+    const weekColumn = event.target.closest(".week-column");
+    if (weekColumn) {
+      state.selectedDay = weekColumn.dataset.date;
+      renderCalendar();
+      return;
+    }
+
+    const quick = event.target.closest(".ai-quick");
     if (quick) {
-      document.getElementById("aiPrompt").value = quick.dataset.prompt;
-      document.getElementById("aiForm").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      const prompt = quick.dataset.prompt || quick.textContent;
+      setActiveRoute("ai");
+      const input = document.getElementById("aiPrompt");
+      if (input) input.value = prompt;
+      await requestAiReply(prompt);
     }
-
-    const heatCell = e.target.closest(".heat-cell");
-    if (heatCell?.dataset.date) {
-      renderHeatmapDetail(heatCell.dataset.date);
-      return;
-    }
-
-    if (e.target.closest("#heatmapModalClose")) {
-      setHeatmapModalOpen(false);
-      return;
-    }
-
-    if (e.target.id === "heatmapModal") {
-      setHeatmapModalOpen(false);
-      return;
-    }
-
-    const jump = e.target.closest(".nav-jump");
-    if (jump) setActiveRoute(jump.dataset.route);
   });
 
-  document.getElementById("aiStatusRefreshBtn")?.addEventListener("click", async () => {
-    state.aiStatus = await api("/api/ai-status");
-    renderAiStatus();
-    toast("Статус AI обновлён");
+  document.getElementById("logoutBtn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    document.getElementById("profileMenu")?.classList.toggle("hidden");
   });
-
-  document.getElementById("aiSmokeTestBtn")?.addEventListener("click", async () => {
-    setActiveRoute("ai");
-    const prompt = "Дай короткий план на сегодня по моей самой важной учебной задаче.";
-    const res = await requestAiReply(prompt);
-    if (!res) return;
-    if (res.aiMode === "live") toast("Live AI ответил");
-    else toast("Сработал fallback: live AI сейчас недоступен");
-  });
-
-  document.getElementById("logoutBtn")?.addEventListener("click", handleLogout);
   document.getElementById("logoutMenuBtn")?.addEventListener("click", handleLogout);
+  document.getElementById("confirmCancelBtn")?.addEventListener("click", () => closeConfirmModal(false));
+  document.getElementById("confirmCloseBtn")?.addEventListener("click", () => closeConfirmModal(false));
+  document.getElementById("confirmOkBtn")?.addEventListener("click", () => closeConfirmModal(true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !document.getElementById("confirmModal")?.classList.contains("hidden")) {
+      closeConfirmModal(false);
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".profile-chip") && !event.target.closest(".profile-menu")) {
+      document.getElementById("profileMenu")?.classList.add("hidden");
+    }
+    if (!event.target.closest(".search-box") && !event.target.closest("#searchResults")) {
+      document.getElementById("searchResults")?.classList.add("hidden");
+    }
+  });
 }
 
 async function init() {
+  state.demoTasks = readStoredDemoTasks();
+  setTheme(localStorage.getItem("studyTheme") === "light" ? "light" : "dark");
+  bindEvents();
+  if (window.location.pathname === "/index.html") {
+    window.history.replaceState({ route: "dashboard" }, "", "/dashboard");
+  }
+  setActiveRoute(getRouteFromPath(), { push: false });
+
   try {
-    initTheme();
-    initSidebarMenu();
-    bindNavigation();
-    if (window.location.pathname === "/index.html") {
-      window.history.replaceState({ route: "dashboard" }, "", "/dashboard");
-    }
-    setActiveRoute(getRouteFromPath(), { push: false });
-    bindForms();
-    bindActions();
-    initMaterialTopics();
     await loadAll();
   } catch (error) {
     console.error(error);
-    toast(error.message || "Ошибка загрузки");
-    if (/not authorized|invalid token/i.test(String(error.message))) {
+    if (/not authorized|invalid token|unauthorized/i.test(String(error.message))) {
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
       window.location.href = "/login";
+      return;
     }
+    renderAll();
+    toast("Данные API недоступны, показан демо-режим");
   }
 }
 

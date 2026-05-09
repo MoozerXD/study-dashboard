@@ -1,13 +1,110 @@
 const API = "";
+const LANG_KEY = "studyLanguage";
+const EN_TEXT = {
+  "Учись с ИИ, проще и эффективнее": "Study with AI, more simply and effectively",
+  "Войди в учебный кабинет, чтобы планировать задачи, следить за прогрессом и получать рекомендации.": "Sign in to plan tasks, track progress, and get recommendations.",
+  "Создать аккаунт": "Create account",
+  "Уже есть аккаунт?": "Already have an account?",
+  "Войти": "Sign in",
+  "Введите email": "Enter email",
+  "Пароль": "Password",
+  "Создайте пароль": "Create a password",
+  "Создавая аккаунт, вы соглашаетесь с условиями сервиса": "By creating an account, you agree to the service terms",
+  "Вход": "Sign in",
+  "Впервые здесь?": "First time here?",
+  "Введите пароль": "Enter password",
+  "Оставаться в системе": "Stay signed in",
+  "Забыли пароль?": "Forgot password?",
+  "Сброс пароля": "Password reset",
+  "Мы отправим инструкции на вашу почту": "We will send instructions to your email",
+  "Сбросить пароль": "Reset password",
+  "Вернуться ко входу": "Back to sign in",
+  "Подтвердить email": "Confirm email",
+  "Введите код подтверждения из письма": "Enter the confirmation code from the email",
+  "Код подтверждения": "Confirmation code",
+  "Введите код": "Enter code",
+  "Подтвердить": "Confirm",
+  "Отправить код ещё раз": "Send code again",
+  "Почти готово": "Almost done",
+  "Проверьте почту и подтвердите аккаунт": "Check your email and confirm your account",
+  "У меня есть код": "I have a code",
+  "Сменить язык": "Switch language",
+};
+const RU_TEXT = Object.fromEntries(Object.entries(EN_TEXT).map(([ru, en]) => [en, ru]));
+Object.assign(RU_TEXT, {
+  "Email sending is not configured yet. Dev confirmation code:": "Отправка email пока не настроена. Dev-код подтверждения:",
+  "Email sending is not configured yet. Dev reset token:": "Отправка email пока не настроена. Dev-токен сброса:",
+  "Account created. Check your email for the confirmation code.": "Аккаунт создан. Проверьте email и введите код подтверждения.",
+  "Create an account first.": "Сначала создайте аккаунт.",
+  "A new confirmation code was sent.": "Новый код подтверждения отправлен.",
+  "Email confirmed. You can sign in now.": "Email подтвержден. Теперь можно войти.",
+  "Password reset instructions were sent to your email.": "Инструкции по сбросу пароля отправлены на email.",
+  "Reset token created. Use the dev token shown above.": "Токен сброса создан. Используйте dev-токен, показанный выше.",
+  "Request failed": "Запрос не прошёл",
+});
+
+function currentLanguage() {
+  return localStorage.getItem(LANG_KEY) === "en" ? "en" : "ru";
+}
+
+function translateValue(value, targetLang = currentLanguage()) {
+  const source = String(value ?? "");
+  if (!source.trim()) return source;
+  const leading = source.match(/^\s*/)?.[0] || "";
+  const trailing = source.match(/\s*$/)?.[0] || "";
+  const text = source.trim();
+  const dictionary = targetLang === "en" ? EN_TEXT : RU_TEXT;
+  return dictionary[text] ? `${leading}${dictionary[text]}${trailing}` : source;
+}
+
+function updateLanguageToggle() {
+  const lang = currentLanguage();
+  document.documentElement.lang = lang;
+  document.getElementById("authLanguageToggleBtn")?.setAttribute("aria-label", lang === "en" ? "Switch language" : "Сменить язык");
+  document.querySelectorAll(".auth-language-label").forEach((label) => {
+    label.textContent = lang.toUpperCase();
+  });
+}
+
+function applyLanguage() {
+  updateLanguageToggle();
+  const lang = currentLanguage();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("script,style,textarea,input")) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    node.nodeValue = translateValue(node.nodeValue, lang);
+  });
+  document.querySelectorAll("[placeholder],[aria-label],[title]").forEach((element) => {
+    ["placeholder", "aria-label", "title"].forEach((attr) => {
+      if (element.hasAttribute(attr)) {
+        element.setAttribute(attr, translateValue(element.getAttribute(attr), lang));
+      }
+    });
+  });
+}
+
+function setLanguage(lang) {
+  localStorage.setItem(LANG_KEY, lang === "en" ? "en" : "ru");
+  applyLanguage();
+}
 
 function show(view) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   document.querySelector(`[data-view="${view}"]`)?.classList.remove("hidden");
+  applyLanguage();
 }
 
 function setErr(id, msg) {
   const el = document.getElementById(id);
-  if (el) el.textContent = msg || "";
+  if (el) el.textContent = translateValue(msg || "");
 }
 
 function savePendingEmail(email) {
@@ -31,15 +128,15 @@ function getToken() {
 function showDeliveryMessage(result, fallbackMessage) {
   if (!result) return;
   if (result.delivery === "dev" && result.devCode) {
-    alert(`Email sending is not configured yet. Dev confirmation code: ${result.devCode}`);
+    alert(`${translateValue("Email sending is not configured yet. Dev confirmation code:")} ${result.devCode}`);
     return;
   }
   if (result.delivery === "dev" && result.devToken) {
-    alert(`Email sending is not configured yet. Dev reset token: ${result.devToken}`);
+    alert(`${translateValue("Email sending is not configured yet. Dev reset token:")} ${result.devToken}`);
     return;
   }
   if (result.message || fallbackMessage) {
-    alert(result.message || fallbackMessage);
+    alert(translateValue(result.message || fallbackMessage));
   }
 }
 
@@ -74,6 +171,9 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
+document.getElementById("authLanguageToggleBtn")?.addEventListener("click", () => {
+  setLanguage(currentLanguage() === "en" ? "ru" : "en");
+});
 route();
 
 document.getElementById("formRegister")?.addEventListener("submit", async (event) => {

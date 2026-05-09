@@ -1,0 +1,24 @@
+
+> dev
+> npm run dev --prefix server
+
+
+> study-dashboard-server@1.0.0 dev
+> npm run db:migrate && node index.js
+
+
+> study-dashboard-server@1.0.0 db:migrate
+> prisma migrate deploy
+
+Datasource "db": SQLite database "dev.db" at "file:./prisma/dev.db"
+
+1 migration found in prisma/migrations
+
+
+No pending migrations to apply.
+[dotenv@17.2.3] injecting env (17) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+Study Dashboard server: http://localhost:3000
+Listening on 0.0.0.0:3000
+Data file: C:\Users\dulat\Downloads\study-dashboard-main\study-dashboard-main\server\data.json
+Auth database: SQLite via Prisma
+Email delivery: dev

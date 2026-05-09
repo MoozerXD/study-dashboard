@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Study Dashboard</title>
+  <title>AI Study</title>
   <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
   <script>
     try {
@@ -16,391 +16,498 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-215D4GWVKF"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-215D4GWVKF');
-</script>
 </head>
 <body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l1.7 5.2L19 9l-5.3 1.8L12 16l-1.7-5.2L5 9l5.3-1.8L12 2Z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/><path d="M5 15l.7 1.8L8 17.5l-2.3.7L5 20l-.7-1.8-2.3-.7 2.3-.7L5 15Z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.8 12 3l9 7.8"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H7a3 3 0 0 0-3 3V5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M8 7h8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M7 2v4M17 2v4"/><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 14.3A8.5 8.5 0 0 1 9.7 3 7 7 0 1 0 21 14.3Z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3.5 3.5 0 0 0-2 6.2A3.5 3.5 0 0 0 8 18.8V5.5A1.5 1.5 0 0 1 9.5 4H9Z"/><path d="M15 4a3 3 0 0 1 3 3 3.5 3.5 0 0 1 2 6.2 3.5 3.5 0 0 1-4 5.6V5.5A1.5 1.5 0 0 0 14.5 4h.5Z"/><path d="M8 10h3M16 10h-3M8 14h3M16 14h-3"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2"/><path d="m16 8 4-4M20 4v4h-4"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5 8a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-8V3"/><path d="M8 15h8"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m16.5 4.5 3 3L8 19H5v-3L16.5 4.5Z"/><path d="m14 7 3 3"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21 11-9.5 9.5a6 6 0 0 1-8.5-8.5L12 3a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L14 6.8"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><rect x="6" y="3" width="13" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="m3.5 8 1 1 2-2M3.5 14l1 1 2-2"/></symbol>
+    <symbol id="i-books" viewBox="0 0 24 24"><path d="M4 6h13a2 2 0 0 1 2 2v11H6a2 2 0 0 0-2 2V6Z"/><path d="M4 17a2 2 0 0 1 2-2h13"/><path d="M8 6V3h11v12"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-hidden="false">
-      <div class="sidebar-head">
-      <div class="brand-block">
-        <div class="brand-mark">✦</div>
-        <div>
-          <div class="brand-title">Study Dashboard</div>
-          <div class="brand-sub">Учебный кабинет</div>
+      <div class="sidebar-top">
+        <div class="brand">
+          <span class="brand-mark"><svg><use href="#i-spark"></use></svg></span>
+          <span class="brand-name">AI Study</span>
         </div>
-      </div>
-      <button class="icon-btn sidebar-close" id="sidebarCloseBtn" type="button" aria-label="Close navigation">
-        <span></span>
-        <span></span>
-      </button>
+        <button class="icon-button sidebar-close" id="sidebarCloseBtn" type="button" aria-label="Закрыть меню">
+          <svg><use href="#i-x"></use></svg>
+        </button>
       </div>
 
-      <nav class="nav-list">
-        <button class="nav-link active" data-route="dashboard">Дашборд</button>
-        <button class="nav-link" data-route="tasks">Задачи</button>
-        <button class="nav-link" data-route="subjects">Предметы</button>
-        <button class="nav-link" data-route="goals">Цели</button>
-        <button class="nav-link" data-route="insights">Посещаемость</button>
-        <button class="nav-link" data-route="ai">ИИ-помощник</button>
-        <button class="nav-link" data-route="materials">Учебный материал</button>
+      <nav class="nav-list" aria-label="Главная навигация">
+        <button class="nav-link active" data-route="dashboard" type="button"><svg><use href="#i-home"></use></svg><span>Дашборд</span></button>
+        <button class="nav-link" data-route="tasks" type="button"><svg><use href="#i-check"></use></svg><span>Задачи</span></button>
+        <button class="nav-link" data-route="subjects" type="button"><svg><use href="#i-book"></use></svg><span>Предметы</span></button>
+        <button class="nav-link" data-route="calendar" type="button"><svg><use href="#i-calendar"></use></svg><span>Календарь</span></button>
+        <button class="nav-link" data-route="ai" type="button"><svg><use href="#i-spark"></use></svg><span>ИИ-помощник</span></button>
+        <button class="nav-link" data-route="profile" type="button"><svg><use href="#i-user"></use></svg><span>Профиль</span></button>
       </nav>
 
-      <div class="sidebar-account">
-        <button id="themeToggleMenuBtn" class="btn btn-secondary theme-toggle" type="button" aria-label="Switch to light theme">
-          <span class="theme-icon" aria-hidden="true">☀</span>
-          <span class="theme-label">Light</span>
-        </button>
-        <div class="user-badge sidebar-user-badge">
-          <span class="user-dot"></span>
-          <span id="userEmailMenu">user@example.com</span>
-        </div>
-        <button id="logoutMenuBtn" class="btn btn-secondary sidebar-logout">Выйти</button>
-      </div>
     </aside>
+
     <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
     <main class="main">
       <header class="topbar">
-        <div class="topbar-main">
-          <button class="icon-btn burger-btn" id="sidebarToggleBtn" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-          <div class="topbar-copy">
-          <h1 class="top-title">Study Dashboard</h1>
-          <div class="top-sub">Планирование учебы, задач и прогресса</div>
-          </div>
-        </div>
+        <button class="icon-button burger" id="sidebarToggleBtn" type="button" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+
+        <label class="search-box">
+          <svg><use href="#i-search"></use></svg>
+          <input id="globalSearch" type="search" placeholder="Поиск по задачам, предметам и материалам..." autocomplete="off">
+        </label>
+        <div class="search-results hidden" id="searchResults" role="listbox" aria-label="Результаты поиска"></div>
+
         <div class="top-actions">
-          <button id="themeToggleBtn" class="btn btn-secondary theme-toggle" type="button" aria-label="Switch to light theme">
-            <span class="theme-icon" aria-hidden="true">☀</span>
-            <span class="theme-label">Light</span>
+          <button class="theme-toggle" id="themeToggleBtn" type="button">
+            <svg><use href="#i-moon"></use></svg>
+            <span class="theme-label">Тёмная</span>
+            <svg class="chevron"><use href="#i-chevron"></use></svg>
           </button>
-          <div class="user-badge">
-            <span class="user-dot"></span>
-            <span id="userEmail">user@example.com</span>
+          <button class="language-toggle" id="languageToggleBtn" type="button" aria-label="Сменить язык">
+            <span class="language-label">RU</span>
+          </button>
+          <div class="notification-wrap">
+            <button class="icon-button notification" data-action="notifications" type="button" aria-label="Уведомления" aria-expanded="false" aria-controls="notificationPanel">
+              <svg><use href="#i-bell"></use></svg>
+            </button>
+            <div class="notification-panel hidden" id="notificationPanel" role="dialog" aria-label="Уведомления"></div>
           </div>
-          <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+          <button class="profile-chip" id="logoutBtn" type="button" title="Профиль">
+            <span class="avatar" id="userAvatar" aria-hidden="true">ДТ</span>
+            <span class="profile-copy">
+              <strong id="userName">Дулат Т.</strong>
+              <span id="userEmail">Студент</span>
+            </span>
+            <svg><use href="#i-chevron"></use></svg>
+          </button>
+          <div class="profile-menu hidden" id="profileMenu">
+            <button data-action="profile-open" type="button">Профиль</button>
+            <button id="logoutMenuBtn" type="button">Выйти</button>
+          </div>
         </div>
       </header>
 
       <section class="content">
-        <div id="toast" class="toast"></div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
         <section class="route" id="route-dashboard">
-          <article class="hero-banner">
-            <div>
-              <h2>Учебная система, которая показывает, где вы реально буксуете</h2>
-              <p>Здесь собраны задачи, дедлайны, предметы и прогресс по учебе.</p>
-            </div>
-            <div class="hero-side">
-              <div class="hero-chip">Автоплан дня</div>
-              <div class="hero-chip">Карта за 28 дней</div>
-              <button class="btn btn-primary nav-jump" data-route="ai">Открыть AI-помощника</button>
-            </div>
-          </article>
-
-          <div class="grid stats-grid">
-            <article class="metric-card"><div class="metric-label">Всего задач</div><div class="metric-value" id="metricTotalTasks">0</div></article>
-            <article class="metric-card"><div class="metric-label">Выполнено</div><div class="metric-value" id="metricDoneTasks">0</div></article>
-            <article class="metric-card"><div class="metric-label">Просрочено</div><div class="metric-value danger" id="metricOverdueTasks">0</div></article>
-            <article class="metric-card"><div class="metric-label">Серия</div><div class="metric-value" id="metricStreak">0</div></article>
-          </div>
-
-          <div class="grid three-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Обзор дня</h2></div>
-              <div id="dailyReviewText" class="callout"></div>
-              <div class="mini-metrics compact" id="dailyReviewStats"></div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-head"><h2>Фокус</h2></div>
-              <div class="focus-score-wrap">
-                <div class="focus-score" id="focusRiskValue">0</div>
-                <div>
-                  <div class="muted">риск перегруза</div>
-                  <div id="focusRecommendation" class="focus-text"></div>
-                </div>
+          <article class="hero-card hero-dashboard">
+            <div class="hero-copy">
+              <h1>Учись с <span>ИИ</span>, проще и эффективнее</h1>
+              <p>Планируй, выполняй задачи и получай персональные рекомендации для уверенного прогресса каждый день.</p>
+              <div class="hero-actions">
+                <button class="primary-button open-task-modal" type="button"><svg><use href="#i-plus"></use></svg>Создать задачу</button>
+                <button class="ghost-button nav-jump" data-route="ai" type="button"><svg><use href="#i-spark"></use></svg>Открыть ИИ-помощника</button>
               </div>
-              <div class="mini-metrics">
-                <div><span>Настроение</span><strong id="focusMood">0</strong></div>
-                <div><span>Сделано сегодня</span><strong id="focusDoneToday">0</strong></div>
-                <div><span>Минут сегодня</span><strong id="focusMinutesToday">0</strong></div>
-              </div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-head"><h2>Автоплан дня</h2></div>
-              <div id="todayPlanHeadline" class="muted" style="margin-bottom:12px"></div>
-              <div id="todayPlanBlocks" class="stack"></div>
-            </article>
-          </div>
-
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Ближайшие задачи</h2></div>
-              <div id="dashboardTasks" class="stack"></div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-head"><h2>Календарь дедлайнов</h2></div>
-              <div id="calendarAgenda" class="stack"></div>
-            </article>
-          </div>
-
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Прогресс по предметам</h2></div>
-              <div id="dashboardSubjects" class="stack"></div>
-            </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Ключевые цели</h2></div>
-              <div id="dashboardGoals" class="stack"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="route hidden" id="route-tasks">
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Новая задача</h2></div>
-              <form id="taskForm" class="form-grid">
-                <input name="title" placeholder="Название задачи" required>
-                <select name="subjectId" id="taskSubjectSelect"><option value="">Без предмета</option></select>
-                <input name="dueDate" type="datetime-local">
-                <select name="priority">
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="low">Low</option>
-                </select>
-                <input name="estimatedMins" type="number" min="5" max="480" value="30" placeholder="Минуты">
-                <input name="focusScore" type="number" min="1" max="100" value="60" placeholder="Оценка фокуса">
-                <textarea name="description" placeholder="Описание задачи"></textarea>
-                <button class="btn btn-primary" type="submit">Добавить задачу</button>
-              </form>
-            </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Список задач</h2></div>
-              <div id="taskList" class="stack"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="route hidden" id="route-subjects">
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Новый предмет</h2></div>
-              <form id="subjectForm" class="form-grid">
-                <input name="name" placeholder="Название предмета" required>
-                <input name="color" type="color" value="#5b8cff">
-                <input name="targetMinutes" type="number" min="30" max="5000" value="240" placeholder="Цель минут в неделю">
-                <textarea name="description" placeholder="Описание предмета"></textarea>
-                <button class="btn btn-primary" type="submit">Добавить предмет</button>
-              </form>
-            </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Список предметов</h2></div>
-              <div id="subjectList" class="stack"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="route hidden" id="route-materials">
-          <article class="panel">
-            <div class="panel-head">
-              <h2>Учебный материал</h2>
             </div>
-
-            <p class="panel-lead">Выберите направление подготовки, чтобы быстро перейти к практике и материалам.</p>
-
-            <div class="grid two-col material-topic-grid">
-              <button type="button" class="item-card vertical material-topic-card active" data-topic="sat" aria-pressed="true">
-                <div class="item-title">SAT</div>
-                <div class="muted">Подготовка к SAT English: reading, writing и practice tests.</div>
-              </button>
-
-              <button type="button" class="item-card vertical material-topic-card" data-topic="ielts" aria-pressed="false">
-                <div class="item-title">IELTS</div>
-                <div class="muted">Материалы по listening, reading, writing и speaking.</div>
-              </button>
-
-              <button type="button" class="item-card vertical material-topic-card" data-topic="ege" aria-pressed="false">
-                <div class="item-title">ЕГЭ</div>
-                <div class="muted">Подготовка к ЕГЭ по основным школьным предметам.</div>
-              </button>
-
-              <button type="button" class="item-card vertical material-topic-card" data-topic="ent" aria-pressed="false">
-                <div class="item-title">ЕНТ</div>
-                <div class="muted">Материалы и практика для подготовки к ЕНТ.</div>
-              </button>
-
-              <button type="button" class="item-card vertical material-topic-card" data-topic="school-books" aria-pressed="false">
-                <div class="item-title">Школьные учебники</div>
-                <div class="muted">Учебники и вспомогательные материалы школьной программы.</div>
-              </button>
+            <div class="holo-visual brain-visual" aria-hidden="true">
+              <span class="holo-ring"></span>
+              <span class="holo-sphere"><svg><use href="#i-brain"></use></svg></span>
+              <span class="holo-platform"></span>
             </div>
           </article>
 
-          <article class="panel material-topic-detail-panel" id="materialTopicDetailPanel">
-            <div class="panel-head">
-              <h2 id="materialTopicTitle">SAT</h2>
-            </div>
-            <div id="materialTopicDescription" class="callout"></div>
-            <div id="materialTopicLinks" class="actions material-topic-links"></div>
-            <div id="materialTopicPoints" class="mini-metrics compact"></div>
-          </article>
+          <div class="metric-row">
+            <button class="metric-card" data-action="metric-tasks" type="button"><span class="metric-icon blue"><svg><use href="#i-calendar"></use></svg></span><div><span>Задачи</span><strong id="metricTotalTasks">12</strong><small id="metricTodayTasks">4 на сегодня</small></div><svg class="metric-arrow"><use href="#i-chevron"></use></svg></button>
+            <button class="metric-card" data-action="metric-focus" type="button"><span class="metric-icon green"><svg><use href="#i-target"></use></svg></span><div><span>Фокус</span><strong id="metricFocus">85%</strong><small id="metricFocusNote">Отличный фокус</small></div><svg class="metric-arrow"><use href="#i-chevron"></use></svg></button>
+            <button class="metric-card" data-action="metric-progress" type="button"><span class="metric-icon indigo"><svg><use href="#i-chart"></use></svg></span><div><span>Прогресс</span><strong id="metricProgress">67%</strong><small id="metricProgressNote">На этой неделе</small></div><svg class="metric-arrow"><use href="#i-chevron"></use></svg></button>
+          </div>
 
-          <article class="panel sat-practice-panel hidden" id="satPracticePanel">
-            <div class="sat-practice-head">
+          <div class="dashboard-grid">
+            <article class="panel today-panel">
+              <div class="panel-head"><h2>Сегодня</h2><button class="dots-button" data-action="today-menu" type="button" aria-label="Дополнительно">•••</button></div>
+              <div class="task-list compact" id="dashboardTodayTasks"></div>
+              <button class="link-button nav-jump" data-route="tasks" type="button">Все задачи <svg><use href="#i-arrow"></use></svg></button>
+            </article>
+
+            <article class="panel plan-panel">
+              <div class="panel-head"><h2>ИИ-план на день</h2><svg class="panel-mark"><use href="#i-spark"></use></svg></div>
+              <div class="plan-list" id="dashboardPlan"></div>
+              <button class="link-button nav-jump" data-route="calendar" type="button">Смотреть полный план <svg><use href="#i-arrow"></use></svg></button>
+            </article>
+          </div>
+
+          <article class="panel progress-panel">
+            <div class="panel-head"><h2>Прогресс по предметам</h2><button class="link-button nav-jump" data-route="subjects" type="button">Все предметы <svg><use href="#i-arrow"></use></svg></button></div>
+            <div class="subject-progress-row" id="dashboardSubjectProgress"></div>
+          </article>
+        </section>
+
+        <section class="route hidden" id="route-profile">
+          <article class="hero-card hero-profile">
+            <div class="profile-hero-copy">
+              <span class="profile-avatar-large" id="profileInitials">AI</span>
               <div>
-                <h2>SAT Practice</h2>
-                <div class="sat-source-line" id="satPracticeStatus">Загрузка вопросов...</div>
+                <h1 id="profileDisplayName">Профиль</h1>
+                <p id="profileDisplayEmail">Студент</p>
+                <div class="profile-badges">
+                  <span class="pill blue" id="profileRoleBadge">Студент</span>
+                  <span class="pill green" id="profileVerifyBadge">Аккаунт активен</span>
+                </div>
               </div>
             </div>
-
-            <div class="sat-filter-row">
-              <select id="satSubsectionSelect" aria-label="SAT subsection"></select>
-              <div class="sat-stat-pill" id="satAnsweredCount">0 решено</div>
-              <div class="sat-stat-pill" id="satMarkedCount">0 отмечено</div>
-            </div>
-
-            <div class="sat-exam-shell" id="satExamShell" hidden>
-              <section class="sat-reading-pane">
-                <div class="sat-question-meta" id="satQuestionMeta"></div>
-                <div class="sat-passage" id="satQuestionBody"></div>
-              </section>
-
-              <section class="sat-answer-pane">
-                <div class="sat-exam-toolbar">
-                  <button class="sat-tool-btn" type="button" id="satMarkBtn" title="Отметить вопрос">☆ Mark</button>
-                  <div class="sat-timer" id="satTimer">00:00</div>
-                  <div class="sat-counter" id="satQuestionCounter">0 / 0</div>
-                  <button class="sat-tool-btn" type="button" id="satCrossoutBtn" title="Режим зачеркивания">S</button>
-                </div>
-
-                <div class="sat-prompt" id="satQuestionPrompt"></div>
-                <div class="sat-choices" id="satChoices"></div>
-                <div class="sat-free-response hidden" id="satFreeResponse">
-                  <input id="satFreeAnswer" type="text" autocomplete="off" placeholder="Введите ответ">
-                </div>
-                <div class="sat-check-result hidden" id="satCheckResult"></div>
-
-                <div class="sat-nav-row">
-                  <button class="btn btn-secondary" type="button" id="satPrevBtn">Назад</button>
-                  <button class="btn btn-secondary" type="button" id="satClearBtn">Очистить</button>
-                  <button class="btn btn-secondary" type="button" id="satAskAiBtn">Спросить у ИИ</button>
-                  <button class="btn btn-primary" type="button" id="satCheckBtn">Проверить</button>
-                  <button class="btn btn-primary" type="button" id="satNextBtn">Дальше</button>
-                </div>
-              </section>
+            <div class="profile-hero-actions">
+              <button class="primary-button" data-action="profile-open-tasks" type="button"><svg><use href="#i-check"></use></svg>Мои задачи</button>
+              <button class="ghost-button" data-action="profile-open-ai" type="button"><svg><use href="#i-spark"></use></svg>ИИ-помощник</button>
             </div>
           </article>
-        </section>
 
-        <section class="route hidden" id="route-goals">
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Новая цель</h2></div>
-              <form id="goalForm" class="form-grid">
-                <input name="title" placeholder="Название цели" required>
-                <select name="subjectId" id="goalSubjectSelect"><option value="">Без предмета</option></select>
-                <input name="targetValue" type="number" min="1" max="10000" value="10">
-                <input name="progressValue" type="number" min="0" max="10000" value="0">
-                <input name="targetDate" type="date">
-                <textarea name="description" placeholder="Описание цели"></textarea>
-                <button class="btn btn-primary" type="submit">Добавить цель</button>
+          <div class="profile-layout">
+            <article class="panel profile-form-panel">
+              <div class="panel-head"><h2>Личные данные</h2><svg class="panel-mark"><use href="#i-user"></use></svg></div>
+              <form id="profileForm" class="profile-form">
+                <div class="avatar-uploader">
+                  <span class="profile-avatar-preview" id="profileAvatarPreview" aria-hidden="true">AI</span>
+                  <div>
+                    <strong>Аватар</strong>
+                    <p>Загрузи картинку профиля или оставь стандартный аватар.</p>
+                    <div class="avatar-actions">
+                      <label class="ghost-button avatar-upload-button">
+                        Выбрать фото
+                        <input id="profileAvatarInput" type="file" accept="image/*">
+                      </label>
+                      <button class="ghost-button danger-button" id="profileAvatarRemoveBtn" type="button">Убрать</button>
+                    </div>
+                  </div>
+                </div>
+                <label>
+                  <span>Имя в профиле</span>
+                  <input name="displayName" id="profileNameInput" placeholder="Как тебя показывать в интерфейсе">
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="email" id="profileEmailInput" disabled>
+                </label>
+                <label>
+                  <span>Роль</span>
+                  <select name="role" id="profileRoleSelect">
+                    <option value="Студент">Студент</option>
+                    <option value="Школьник">Школьник</option>
+                    <option value="Абитуриент">Абитуриент</option>
+                    <option value="Самообучение">Самообучение</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">Сохранить профиль</button>
               </form>
             </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Список целей</h2></div>
-              <div id="goalList" class="stack"></div>
-            </article>
-          </div>
-        </section>
 
-        <section class="route hidden" id="route-insights">
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Карта учёбы</h2></div>
-              <div id="heatmapGrid" class="heatmap-grid"></div>
-              <div class="heatmap-legend muted">0 → 120+ минут</div>
+            <article class="panel profile-stats-panel">
+              <div class="panel-head"><h2>Учебная статистика</h2><svg class="panel-mark"><use href="#i-chart"></use></svg></div>
+              <div class="profile-stat-grid" id="profileStats"></div>
             </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Динамика недели</h2></div>
-              <div id="weeklyTrendChart" class="bars"></div>
-            </article>
-          </div>
 
-          <div class="grid two-col">
-            <article class="panel">
-              <div class="panel-head"><h2>Последние сессии</h2></div>
-              <div id="sessionList" class="stack"></div>
-            </article>
-            <article class="panel">
-              <div class="panel-head"><h2>Зоны риска</h2></div>
-              <div id="riskCards" class="stack"></div>
+            <article class="panel profile-actions-panel">
+              <div class="panel-head"><h2>Быстрые действия</h2><svg class="panel-mark"><use href="#i-spark"></use></svg></div>
+              <div class="profile-action-grid">
+                <button class="profile-action" data-action="profile-create-task" type="button"><span class="plan-icon blue"><svg><use href="#i-plus"></use></svg></span><strong>Новая задача</strong><small>Добавить учебный блок</small></button>
+                <button class="profile-action" data-action="profile-open-calendar" type="button"><span class="plan-icon green"><svg><use href="#i-calendar"></use></svg></span><strong>Календарь</strong><small>Посмотреть расписание</small></button>
+                <button class="profile-action" data-action="profile-theme" type="button"><span class="plan-icon purple"><svg><use href="#i-moon"></use></svg></span><strong id="profileThemeLabel">Тема</strong><small>Переключить оформление</small></button>
+                <button class="profile-action" data-action="profile-review" type="button"><span class="plan-icon amber"><svg><use href="#i-brain"></use></svg></span><strong>Обзор дня</strong><small>Спросить ИИ о прогрессе</small></button>
+              </div>
             </article>
           </div>
         </section>
 
         <section class="route hidden" id="route-ai">
-          <div class="ai-toolbar">
-            <div class="ai-toolbar-card">
-              <div class="toolbar-title">Проверка AI</div>
-              <div class="toolbar-actions">
-                <button type="button" class="btn btn-secondary" id="aiStatusRefreshBtn">Обновить статус</button>
-                <button type="button" class="btn btn-primary" id="aiSmokeTestBtn">Проверить AI</button>
+          <article class="hero-card hero-ai">
+            <div class="hero-copy">
+              <h1>ИИ-помощник</h1>
+              <p>Твой умный помощник для учебы, планирования и объяснения тем.</p>
+              <div class="hero-actions wide">
+                <button class="ghost-button ai-quick" data-prompt="Составь план подготовки на сегодня" type="button"><svg><use href="#i-calendar"></use></svg>Составить план</button>
+                <button class="ghost-button ai-quick" data-prompt="Объясни тему простыми словами" type="button"><svg><use href="#i-book"></use></svg>Объяснить тему</button>
+                <button class="ghost-button open-task-modal" type="button"><svg><use href="#i-check"></use></svg>Создать задачи</button>
               </div>
             </div>
-            <div class="ai-toolbar-card">
-              <div class="toolbar-title">Помощник по учебе</div>
+            <div class="holo-visual brain-visual small" aria-hidden="true">
+              <span class="holo-ring"></span>
+              <span class="holo-sphere"><svg><use href="#i-brain"></use></svg></span>
+              <span class="holo-platform"></span>
             </div>
+          </article>
+
+          <div class="ai-layout">
+            <article class="panel chat-panel">
+              <div class="assistant-greeting">
+                <span class="assistant-avatar"><svg><use href="#i-brain"></use></svg></span>
+                <div>
+                  <strong>Привет, Дулат! 👋</strong>
+                  <p>Я помогу тебе разобраться в теме, составить план занятий и превратить цели в конкретные задачи.</p>
+                </div>
+              </div>
+              <div class="prompt-chips">
+                <button class="ai-quick" data-prompt="Объясни интегралы простыми словами" type="button">Объясни интегралы простыми словами</button>
+                <button class="ai-quick" data-prompt="Составь план подготовки к SAT" type="button">Составь план подготовки к SAT</button>
+                <button class="ai-quick" data-prompt="Помоги с эссе по английскому" type="button">Помоги с эссе по английскому</button>
+                <button class="ai-quick" data-prompt="Разбей тему по физике на 5 шагов" type="button">Разбей тему по физике на 5 шагов</button>
+              </div>
+              <div class="chat-divider"><span>Сегодня</span></div>
+              <div class="chat-box" id="aiMessages"></div>
+              <div class="ai-attachments hidden" id="aiAttachments" aria-live="polite"></div>
+              <form class="chat-form" id="aiForm">
+                <button class="attach-button" type="button" aria-label="Прикрепить файл"><svg><use href="#i-paperclip"></use></svg></button>
+                <input class="file-input" id="aiFileInput" type="file" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.html,.css,.rtf">
+                <input id="aiPrompt" type="text" placeholder="Напиши запрос..." autocomplete="off">
+                <button class="send-button" id="aiSubmitBtn" data-action="ai-send" type="button" aria-label="Отправить"><svg><use href="#i-send"></use></svg></button>
+              </form>
+            </article>
+
+            <aside class="side-stack">
+              <article class="panel mini-panel">
+                <div class="panel-head"><h2>Что умеет ассистент</h2><svg class="panel-mark"><use href="#i-spark"></use></svg></div>
+                <ul class="capability-list">
+                  <li><svg><use href="#i-target"></use></svg>Объясняет темы простыми словами</li>
+                  <li><svg><use href="#i-calendar"></use></svg>Помогает составлять планы и расписание</li>
+                  <li><svg><use href="#i-check"></use></svg>Создает тесты и проверочные задания</li>
+                  <li><svg><use href="#i-spark"></use></svg>Генерирует задачи и примеры</li>
+                </ul>
+              </article>
+              <article class="panel mini-panel">
+                <div class="panel-head"><h2>Контекст обучения</h2><svg class="panel-mark"><use href="#i-chart"></use></svg></div>
+                <div class="context-list" id="aiContext"></div>
+              </article>
+              <article class="panel mini-panel">
+                <div class="panel-head"><h2>Быстрые инструменты</h2><svg class="panel-mark"><use href="#i-spark"></use></svg></div>
+                <div class="tool-grid">
+                  <button class="ai-quick" data-prompt="Создай мини-тест по моей слабой теме" type="button">Мини-тест</button>
+                  <button class="ai-quick" data-prompt="Сделай карточки для повторения" type="button">Карточки</button>
+                  <button class="ai-quick" data-prompt="Собери короткий конспект" type="button">Конспект</button>
+                  <button class="ai-quick" data-prompt="Составь план недели" type="button">План недели</button>
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section class="route hidden" id="route-calendar">
+          <article class="hero-card hero-calendar">
+            <div class="hero-copy">
+              <h1>Календарь</h1>
+              <p>Планируй занятия, дедлайны и фокус-сессии на неделю и месяц.</p>
+            </div>
+            <div class="holo-visual calendar-visual" aria-hidden="true">
+              <span class="holo-ring"></span>
+              <span class="holo-card"><svg><use href="#i-calendar"></use></svg></span>
+              <span class="holo-platform"></span>
+            </div>
+          </article>
+
+          <div class="calendar-layout">
+            <article class="panel calendar-panel">
+              <div class="calendar-toolbar">
+                <button class="icon-button" id="prevMonthBtn" type="button" aria-label="Предыдущий месяц"><svg class="rotate"><use href="#i-arrow"></use></svg></button>
+                <h2 id="calendarMonthTitle">Май 2025</h2>
+                <button class="icon-button" id="nextMonthBtn" type="button" aria-label="Следующий месяц"><svg><use href="#i-arrow"></use></svg></button>
+                <div class="segmented">
+                  <button data-calendar-mode="day" type="button">День</button><button data-calendar-mode="week" type="button">Неделя</button><button class="active" data-calendar-mode="month" type="button">Месяц</button>
+                </div>
+                <button class="primary-button open-task-modal" type="button"><svg><use href="#i-plus"></use></svg>Добавить событие</button>
+              </div>
+              <div class="month-grid" id="calendarGrid"></div>
+            </article>
+
+            <aside class="side-stack">
+              <article class="panel schedule-switcher">
+                <div class="panel-head schedule-switcher-head">
+                  <div>
+                    <h2 id="schedulePanelTitle">Расписание дня</h2>
+                    <span id="selectedDayLabel">Сегодня</span>
+                  </div>
+                  <div class="schedule-switcher-controls" aria-label="Переключить расписание">
+                    <button class="icon-button" data-action="schedule-prev" type="button" aria-label="Показать расписание дня"><svg class="rotate"><use href="#i-arrow"></use></svg></button>
+                    <button class="icon-button" data-action="schedule-next" type="button" aria-label="Показать план недели"><svg><use href="#i-arrow"></use></svg></button>
+                  </div>
+                </div>
+                <div class="schedule-view" id="dayScheduleView">
+                  <div class="day-list" id="daySchedule"></div>
+                  <button class="link-button" data-action="full-day" type="button">Смотреть полный день <svg><use href="#i-arrow"></use></svg></button>
+                </div>
+                <div class="schedule-view hidden" id="weekPlanView">
+                  <div class="week-bars" id="weekPlan"></div>
+                </div>
+              </article>
+            </aside>
           </div>
 
-          <div class="ai-workspace">
-            <article class="panel ai-chat-panel">
-              <div class="panel-head ai-chat-head">
+          <article class="panel recommendations-panel">
+            <div class="panel-head"><h2>ИИ-рекомендации</h2><svg class="panel-mark"><use href="#i-spark"></use></svg></div>
+            <div class="recommendation-row" id="calendarRecommendations"></div>
+          </article>
+        </section>
+
+        <section class="route hidden" id="route-tasks">
+          <article class="hero-card hero-tasks">
+            <div class="hero-copy">
+              <h1>Задачи</h1>
+              <p>Управляй учебными задачами, дедлайнами и приоритетами без перегруза.</p>
+            </div>
+            <div class="holo-visual checklist-visual" aria-hidden="true">
+              <span class="holo-ring"></span>
+              <span class="holo-card"><svg><use href="#i-list"></use></svg></span>
+              <span class="holo-platform"></span>
+            </div>
+          </article>
+
+          <div class="tasks-layout">
+            <div class="tasks-main">
+              <div class="tabs-bar">
+                <div class="tab-group">
+                  <button class="task-filter active" data-filter="all" type="button">Все</button>
+                  <button class="task-filter" data-filter="today" type="button">Сегодня</button>
+                  <button class="task-filter" data-filter="important" type="button">Важные</button>
+                </div>
+                <button class="primary-button open-task-modal" type="button"><svg><use href="#i-plus"></use></svg>Создать задачу</button>
+              </div>
+
+              <article class="panel task-panel">
+                <div class="panel-head"><h2>Мои задачи</h2><button class="dots-button" data-action="task-menu" type="button" aria-label="Дополнительно">•••</button></div>
+                <div class="task-list" id="taskList"></div>
+                <button class="link-button" data-action="all-tasks" type="button">Все задачи <svg><use href="#i-arrow"></use></svg></button>
+              </article>
+            </div>
+
+            <aside class="side-stack">
+              <article class="panel mini-panel">
+                <div class="panel-head"><h2>Обзор задач</h2></div>
+                <div class="overview-grid" id="taskOverview"></div>
+              </article>
+              <article class="panel mini-panel">
+                <div class="panel-head"><h2>Фокус на сегодня</h2><svg class="panel-mark"><use href="#i-target"></use></svg></div>
+                <div class="focus-list" id="taskFocus"></div>
+                <button class="link-button nav-jump" data-route="calendar" type="button">Смотреть день в календаре <svg><use href="#i-arrow"></use></svg></button>
+              </article>
+              <article class="panel ai-tip-card">
+                <div class="assistant-avatar"><svg><use href="#i-brain"></use></svg></div>
                 <div>
-                  <h2>ИИ-помощник</h2>
+                  <h2>Сфокусируйся на важном</h2>
+                  <p>Рекомендуем сначала закрыть задачи с высоким приоритетом, а затем перейти к повторению.</p>
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section class="route hidden" id="route-subjects">
+          <article class="hero-card hero-subjects">
+            <div class="hero-copy">
+              <h1>Предметы</h1>
+              <p>Следи за прогрессом по предметам, материалам и тестам.</p>
+            </div>
+            <div class="holo-visual books-visual" aria-hidden="true">
+              <span class="holo-ring"></span>
+              <span class="holo-card"><svg><use href="#i-books"></use></svg></span>
+              <span class="holo-platform"></span>
+            </div>
+          </article>
+
+          <div class="subject-card-row" id="subjectCards"></div>
+
+          <div class="subjects-layout">
+            <article class="panel subject-detail">
+              <div class="panel-head">
+                <h2 id="activeSubjectTitle">Математика</h2>
+                <div class="subject-head-actions">
+                  <span id="subjectActions"></span>
+                  <button class="ghost-button open-subject-modal" type="button"><svg><use href="#i-plus"></use></svg>Добавить предмет</button>
                 </div>
               </div>
-              <div id="aiMessages" class="chat-box ai-chat-box"></div>
-              <form id="aiForm" class="chat-form ai-composer">
-                <div class="ai-quick-grid">
-                  <button type="button" class="btn btn-secondary ai-quick" data-prompt="Составь план подготовки к SAT English на 7 дней">SAT план</button>
-                  <button type="button" class="btn btn-secondary ai-quick" data-prompt="Я устал и не успеваю, что мне делать?">Анти-выгорание</button>
-                  <button type="button" class="btn btn-secondary ai-quick" data-prompt="Что у меня сейчас самое слабое место?">Слабое место</button>
-                </div>
-                <textarea id="aiPrompt" placeholder="Например: составь план на сегодня по самой важной задаче и учти мои просрочки"></textarea>
-                <div class="chat-actions ai-composer-actions">
-                  <button type="submit" class="btn btn-primary" id="aiSubmitBtn">Спросить AI</button>
-                </div>
-              </form>
+              <div class="subject-tabs"><button data-subject-tab="materials" type="button">Материалы</button><button class="active" data-subject-tab="tests" type="button">Тесты</button><button data-subject-tab="progress" type="button">Прогресс</button></div>
+              <div class="test-list" id="subjectTests"></div>
+              <button class="link-button" data-action="all-tests" type="button">Смотреть все тесты <svg><use href="#i-arrow"></use></svg></button>
             </article>
 
           </div>
         </section>
-
-        <div class="modal-backdrop" id="heatmapModal" aria-hidden="true">
-          <div class="modal-card heatmap-modal-card" role="dialog" aria-modal="true" aria-labelledby="heatmapModalTitle">
-            <button class="modal-close" id="heatmapModalClose" type="button" aria-label="Закрыть окно">×</button>
-            <div id="heatmapModalContent" class="heatmap-modal-content"></div>
-          </div>
-        </div>
       </section>
     </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="taskModal" aria-hidden="true">
+    <form class="modal-card" id="taskForm">
+      <div class="modal-head">
+        <h2 id="taskModalTitle">Новая задача</h2>
+        <button class="icon-button close-modal" type="button" aria-label="Закрыть"><svg><use href="#i-x"></use></svg></button>
+      </div>
+      <input type="hidden" name="taskId" id="taskId">
+      <input name="title" placeholder="Название задачи" required>
+      <select name="subjectId" id="taskSubjectSelect"><option value="">Без предмета</option></select>
+      <div class="form-row">
+        <input name="dueDate" type="datetime-local">
+        <select name="priority">
+          <option value="high">Высокий</option>
+          <option value="medium" selected>Средний</option>
+          <option value="low">Низкий</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input name="estimatedMins" type="number" min="5" max="480" value="45" placeholder="Минуты">
+        <input name="focusScore" type="number" min="1" max="100" value="70" placeholder="Фокус">
+      </div>
+      <textarea name="description" placeholder="Описание"></textarea>
+      <div class="modal-actions">
+        <button class="ghost-button danger-button hidden" id="taskDeleteBtn" data-action="task-delete" type="button">Удалить</button>
+        <button class="primary-button" id="taskSubmitBtn" type="submit">Добавить задачу</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop hidden" id="subjectModal" aria-hidden="true">
+    <form class="modal-card" id="subjectForm">
+      <div class="modal-head">
+        <h2 id="subjectModalTitle">Новый предмет</h2>
+        <button class="icon-button close-modal" type="button" aria-label="Закрыть"><svg><use href="#i-x"></use></svg></button>
+      </div>
+      <input type="hidden" name="subjectId" id="subjectId">
+      <input name="name" placeholder="Название предмета" required>
+      <div class="form-row">
+        <input name="color" type="color" value="#4f8cff" aria-label="Цвет предмета">
+        <input name="targetMinutes" type="number" min="30" max="5000" value="240" placeholder="Минут в неделю">
+      </div>
+      <textarea name="description" placeholder="Описание"></textarea>
+      <div class="modal-actions">
+        <button class="ghost-button danger-button hidden" id="subjectDeleteBtn" data-action="subject-delete" type="button">Удалить</button>
+        <button class="primary-button" id="subjectSubmitBtn" type="submit">Добавить предмет</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop hidden" id="confirmModal" aria-hidden="true">
+    <div class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal-head">
+        <h2 id="confirmTitle">Подтвердить действие</h2>
+        <button class="icon-button" id="confirmCloseBtn" type="button" aria-label="Закрыть"><svg><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="confirmText">Вы уверены?</p>
+      <div class="modal-actions confirm-actions">
+        <button class="ghost-button" id="confirmCancelBtn" type="button">Отмена</button>
+        <button class="primary-button danger-confirm" id="confirmOkBtn" type="button">Удалить</button>
+      </div>
+    </div>
   </div>
 
   <script src="./dashboard-auth.js"></script>
