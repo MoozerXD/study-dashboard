@@ -2131,43 +2131,9 @@ app.get("/api/ai-history", authMiddleware, safe(async (req, res) => {
 }));
 
 app.post("/api/bootstrap-demo", authMiddleware, safe(async (req, res) => {
-  const store = loadStore();
-  if (store.subjects.some((x) => x.userId === req.userId)) {
-    return res.json({ ok: true, seeded: false, message: "User already has data" });
-  }
-  const sat = { id: uid(), userId: req.userId, name: "SAT Math", color: "#2563eb", targetMinutes: 420, description: "Core practice and timed drills", createdAt: nowIso(), updatedAt: nowIso() };
-  const eng = { id: uid(), userId: req.userId, name: "English", color: "#8b5cf6", targetMinutes: 300, description: "Reading and writing", createdAt: nowIso(), updatedAt: nowIso() };
-  const phys = { id: uid(), userId: req.userId, name: "Physics", color: "#14b8a6", targetMinutes: 240, description: "Problem solving blocks", createdAt: nowIso(), updatedAt: nowIso() };
-  store.subjects.push(sat, eng, phys);
-
-  store.goals.push(
-    { id: uid(), userId: req.userId, subjectId: sat.id, title: "Finish 5 SAT timed sets", description: null, targetDate: null, targetValue: 5, progressValue: 2, status: "active", createdAt: nowIso(), updatedAt: nowIso() },
-    { id: uid(), userId: req.userId, subjectId: eng.id, title: "Read 3 long passages", description: null, targetDate: null, targetValue: 3, progressValue: 1, status: "active", createdAt: nowIso(), updatedAt: nowIso() }
-  );
-
-  store.tasks.push(
-    { id: uid(), userId: req.userId, subjectId: sat.id, title: "Quadratics drill", description: "Timed drill on weak patterns", status: "todo", priority: "high", dueDate: addMinutes(new Date(), 24 * 60).toISOString(), estimatedMins: 45, focusScore: 82, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null },
-    { id: uid(), userId: req.userId, subjectId: eng.id, title: "Vocabulary review", description: null, status: "doing", priority: "medium", dueDate: addMinutes(new Date(), 48 * 60).toISOString(), estimatedMins: 25, focusScore: 61, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null },
-    { id: uid(), userId: req.userId, subjectId: phys.id, title: "Mechanics worksheet", description: null, status: "todo", priority: "medium", dueDate: addMinutes(new Date(), -12 * 60).toISOString(), estimatedMins: 50, focusScore: 72, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null },
-    { id: uid(), userId: req.userId, subjectId: sat.id, title: "Timed no-calculator set", description: null, status: "done", priority: "high", dueDate: addMinutes(new Date(), -48 * 60).toISOString(), estimatedMins: 35, focusScore: 78, createdAt: nowIso(), updatedAt: nowIso(), completedAt: nowIso() }
-  );
-
-  const now = new Date();
-  store.studySessions.push(
-    { id: uid(), userId: req.userId, subjectId: sat.id, startedAt: addMinutes(now, -135).toISOString(), endedAt: addMinutes(now, -90).toISOString(), minutes: 45, mood: 4, note: null, createdAt: addMinutes(now, -90).toISOString() },
-    { id: uid(), userId: req.userId, subjectId: eng.id, startedAt: addDays(now, -1).toISOString(), endedAt: addMinutes(addDays(now, -1), 30).toISOString(), minutes: 30, mood: 3, note: null, createdAt: addDays(now, -1).toISOString() },
-    { id: uid(), userId: req.userId, subjectId: sat.id, startedAt: addDays(now, -2).toISOString(), endedAt: addMinutes(addDays(now, -2), 65).toISOString(), minutes: 65, mood: 4, note: null, createdAt: addDays(now, -2).toISOString() },
-    { id: uid(), userId: req.userId, subjectId: phys.id, startedAt: addDays(now, -3).toISOString(), endedAt: addMinutes(addDays(now, -3), 40).toISOString(), minutes: 40, mood: 2, note: "Low energy", createdAt: addDays(now, -3).toISOString() }
-  );
-
-  store.materials.push(
-    { id: uid(), userId: req.userId, subjectId: sat.id, title: "SAT Math formula sheet", kind: "note", url: null, description: "Короткий конспект формул и типовых ошибок перед timed drill.", createdAt: nowIso(), updatedAt: nowIso() },
-    { id: uid(), userId: req.userId, subjectId: eng.id, title: "Reading strategy video", kind: "video", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", description: "Разбор структуры passage и порядка ответов.", createdAt: nowIso(), updatedAt: nowIso() },
-    { id: uid(), userId: req.userId, subjectId: phys.id, title: "Mechanics practice set", kind: "practice", url: "https://www.khanacademy.org/science/physics", description: "Подборка задач для закрепления законов Ньютона.", createdAt: nowIso(), updatedAt: nowIso() }
-  );
-
-  saveStore(store);
-  res.json({ ok: true, seeded: true });
+  // Starter demo data is intentionally disabled.
+  // New users must begin with empty Tasks, Subjects, and Calendar tabs.
+  res.json({ ok: true, seeded: false, message: "Demo data is disabled" });
 }));
 
 app.use((err, req, res, next) => {
