@@ -3098,3 +3098,44 @@ body.exam-running{overflow:hidden}
   .exam-palette{order:3;flex-basis:100%}
 }
 
+
+/* -------- dashboard exam widget -------- */
+.exam-dash-empty{display:grid;gap:12px;justify-items:start;color:var(--muted);font-size:14px}
+.exam-dash-empty p{margin:0}
+.exam-dash-links{display:flex;gap:8px;flex-wrap:wrap}
+#dashboardExams{display:grid;gap:10px}
+.exam-dash-row{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  width:100%;
+  text-align:left;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-left:3px solid var(--exam-accent,var(--blue));
+  border-radius:var(--radius);
+  background:var(--card-2);
+  color:var(--text);
+  cursor:pointer;
+  transition:border-color .15s ease,background .15s ease;
+}
+.exam-dash-row:hover{border-color:var(--exam-accent,var(--line-strong));background:var(--card-3)}
+.exam-dash-info{flex:1;display:grid;gap:2px;min-width:0}
+.exam-dash-info strong{font-size:14.5px}
+.exam-dash-info small{color:var(--muted);font-size:12px}
+.exam-dash-bar{display:flex;align-items:center;gap:8px;flex:0 0 150px}
+.exam-dash-bar .exam-bar{flex:1}
+.exam-dash-bar small{color:var(--muted);font-weight:700;min-width:34px;text-align:right}
+@media (max-width:700px){.exam-dash-bar{flex-basis:90px}}
+
+/* -------- subject "tests" tab CTA -------- */
+.subject-exams-cta{
+  display:grid;
+  gap:14px;
+  padding:22px;
+  border:1px dashed var(--line-strong);
+  border-radius:var(--radius-lg);
+  text-align:left;
+}
+.subject-exams-cta p{margin:0;color:var(--muted);font-size:14px;max-width:520px}
+.subject-exams-buttons{display:flex;gap:8px;flex-wrap:wrap}

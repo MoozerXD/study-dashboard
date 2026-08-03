@@ -4,10 +4,10 @@
   "use strict";
 
   const CATALOG = [
-    { id: "ent", flag: "🇰🇿", accent: "#22c1a3" },
-    { id: "ege", flag: "🇷🇺", accent: "#5b8cff" },
-    { id: "ielts", flag: "🌍", accent: "#b478ff" },
-    { id: "sat", flag: "🇺🇸", accent: "#ffb020" },
+    { id: "ent", flag: "🇰🇿", accent: "#22c1a3", name: { ru: "ЕНТ", en: "UNT" } },
+    { id: "ege", flag: "🇷🇺", accent: "#5b8cff", name: { ru: "ЕГЭ", en: "EGE" } },
+    { id: "ielts", flag: "🌍", accent: "#b478ff", name: { ru: "IELTS", en: "IELTS" } },
+    { id: "sat", flag: "🇺🇸", accent: "#ffb020", name: { ru: "SAT", en: "SAT" } },
   ];
   const PRACTICE_LENGTHS = [10, 20];
 
@@ -31,6 +31,19 @@
     return obj[lang()] || obj.ru || obj.en || "";
   }
   function esc(value) { return escapeHtml(String(value ?? "")); }
+
+  // Russian pluralization: plural(3, ["попытка","попытки","попыток"])
+  function plural(n, forms) {
+    if (lang() === "en") return `${forms[3] || forms[2]}`;
+    const abs = Math.abs(n) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return forms[2];
+    if (last === 1) return forms[0];
+    if (last >= 2 && last <= 4) return forms[1];
+    return forms[2];
+  }
+  const QUESTIONS_FORMS = ["вопрос", "вопроса", "вопросов", "questions"];
+  const ATTEMPTS_FORMS = ["попытка", "попытки", "попыток", "attempts"];
 
   /* ---------- tiny markdown renderer for materials ---------- */
   function renderMarkdown(md) {
@@ -237,8 +250,8 @@
       const desc = exam ? pick(exam.description) : "";
       const qCount = exam ? exam.questions.length : null;
       const stats = [
-        qCount != null ? `${qCount} ${t("вопросов", "questions")}` : "",
-        attempts.length ? `${attempts.length} ${t("попыток", "attempts")}` : t("ещё нет попыток", "no attempts yet"),
+        qCount != null ? `${qCount} ${plural(qCount, QUESTIONS_FORMS)}` : "",
+        attempts.length ? `${attempts.length} ${plural(attempts.length, ATTEMPTS_FORMS)}` : t("ещё нет попыток", "no attempts yet"),
         best ? `${t("Лучший", "Best")}: ${best}` : "",
       ].filter(Boolean);
       return `
@@ -300,7 +313,7 @@
       <div class="exam-section-row">
         <div>
           <strong>${esc(pick(s.title))}</strong>
-          <small>${s.questionsPerAttempt} ${t("вопросов", "questions")} · ${s.durationMin} ${t("мин", "min")}</small>
+          <small>${s.questionsPerAttempt} ${plural(s.questionsPerAttempt, QUESTIONS_FORMS)} · ${s.durationMin} ${t("мин", "min")}</small>
         </div>
         <button class="ghost-button" data-action="exam-start-section" data-section="${s.id}" type="button">${t("Начать", "Start")}</button>
       </div>`).join("");
@@ -311,7 +324,7 @@
           <p>${t("Все секции подряд с таймером, как на реальном экзамене.", "All sections in sequence with a timer, just like the real exam.")}</p>
           <div class="exam-full-mock-meta">
             <span>${exam.sections.length} ${t("секций", "sections")}</span>
-            <span>${totalQuestions} ${t("вопросов", "questions")}</span>
+            <span>${totalQuestions} ${plural(totalQuestions, QUESTIONS_FORMS)}</span>
             <span>${totalMin} ${t("минут", "minutes")}</span>
           </div>
           <button class="primary-button" data-action="exam-start-full" type="button">${t("Начать полный тест", "Start full test")}</button>
@@ -334,7 +347,7 @@
         <div class="exam-section-row">
           <div>
             <strong>${esc(pick(s.title))}</strong>
-            <small>${total} ${t("вопросов в банке", "questions in bank")}</small>
+            <small>${total} ${plural(total, QUESTIONS_FORMS)} ${t("в банке", "in bank")}</small>
           </div>
           <div class="exam-practice-actions">
             ${lengths.map((n) => `<button class="ghost-button" data-action="exam-start-practice" data-section="${s.id}" data-count="${Math.min(n, total)}" type="button">${Math.min(n, total)}</button>`).join("")}
@@ -860,6 +873,45 @@
     }
   }
 
+  /* ---------- dashboard widget ---------- */
+  function renderDashboardWidget() {
+    const box = document.getElementById("dashboardExams");
+    if (!box) return;
+    if (!ex.attemptsLoaded) {
+      loadAttempts().then(() => renderDashboardWidget()).catch(() => {});
+      return;
+    }
+    if (!ex.attempts.length) {
+      box.innerHTML = `
+        <div class="exam-dash-empty">
+          <p>${t("Готовишься к ЕНТ, ЕГЭ, IELTS или SAT? Пройди первый пробный тест и следи за прогрессом здесь.", "Preparing for UNT, EGE, IELTS or SAT? Take your first mock test and track your progress here.")}</p>
+          <div class="exam-dash-links">
+            ${CATALOG.map((c) => `<button class="ghost-button" data-action="exam-open" data-exam="${c.id}" type="button">${c.flag} ${pick(c.name)}</button>`).join("")}
+          </div>
+        </div>`;
+      return;
+    }
+    const byExam = CATALOG.map((meta) => {
+      const rows = attemptsFor(meta.id);
+      if (!rows.length) return null;
+      const last = rows[0];
+      const best = bestAttemptLabel(meta.id);
+      const totalCorrect = rows.reduce((sum, a) => sum + (a.score?.correct || 0), 0);
+      const totalAll = rows.reduce((sum, a) => sum + (a.score?.total || 0), 0);
+      const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
+      return { meta, rows, last, best, accuracy };
+    }).filter(Boolean);
+    box.innerHTML = byExam.map(({ meta, rows, last, best, accuracy }) => `
+      <button class="exam-dash-row" data-action="exam-open" data-exam="${meta.id}" type="button" style="--exam-accent:${meta.accent}">
+        <span class="exam-flag">${meta.flag}</span>
+        <span class="exam-dash-info">
+          <strong>${esc(pick(ex.cache[meta.id]?.title) || pick(meta.name))}</strong>
+          <small>${rows.length} ${plural(rows.length, ATTEMPTS_FORMS)} · ${t("последняя", "last")}: ${esc(last.score?.scaledLabel || "—")}${best ? ` · ${t("лучшая", "best")}: ${esc(best)}` : ""}</small>
+        </span>
+        <span class="exam-dash-bar"><span class="exam-bar"><span style="width:${accuracy}%"></span></span><small>${accuracy}%</small></span>
+      </button>`).join("");
+  }
+
   /* ---------- events ---------- */
   document.addEventListener("click", async (event) => {
     const target = event.target.closest("[data-action^='exam-']");
@@ -872,6 +924,8 @@
       ex.activeExamId = examId;
       ex.tab = "mock";
       ex.openMaterialId = null;
+      const routeHidden = document.getElementById("route-exams")?.classList.contains("hidden");
+      if (routeHidden && typeof setActiveRoute === "function") setActiveRoute("exams");
       render(); // show whatever we have; then load
       try {
         await Promise.all([loadExam(examId), loadAttempts()]);
@@ -1007,6 +1061,7 @@
       // called on renderAll (language switch / data reload)
       const route = document.getElementById("route-exams");
       if (route && !route.classList.contains("hidden")) render();
+      renderDashboardWidget();
       if (ex.runner) renderRunner();
     },
     invalidateAttempts() { ex.attemptsLoaded = false; },

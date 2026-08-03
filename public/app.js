@@ -39,6 +39,20 @@ const EN_TEXT = {
   "Предметы": "Subjects",
   "Экзамены": "Exams",
   "Подготовка к экзаменам": "Exam preparation",
+  "Все экзамены": "All exams",
+  "Все пробные тесты": "All mock tests",
+  "Пробные тесты с таймером, банками вопросов и разбором ответов находятся в разделе «Экзамены».": "Timed mock tests with question banks and answer reviews live in the Exams section.",
+  "Мини-тест от ИИ": "AI mini-test",
+  "Короткий конспект": "Short summary",
+  "Разбор сложной темы": "Tough topic breakdown",
+  "Задания для практики": "Practice exercises",
+  "Главные формулы, термины и примеры": "Key formulas, terms, and examples",
+  "Объяснение простыми словами с примерами": "Plain-language explanation with examples",
+  "Упражнения для закрепления темы": "Exercises to reinforce the topic",
+  "Конспект": "Summary",
+  "Разбор": "Breakdown",
+  "Практика": "Practice",
+  "→ ИИ": "→ AI",
   "Пробные тесты ЕНТ, ЕГЭ, IELTS и SAT: реальный формат, таймер, разбор ответов и отслеживание прогресса.": "Mock tests for UNT, EGE, IELTS and SAT: realistic format, timer, answer review and progress tracking.",
   "Календарь": "Calendar",
   "ИИ-помощник": "AI assistant",
@@ -335,43 +349,13 @@ function dateAt(offsetDays, hour, minute = 0) {
   return date.toISOString();
 }
 
-const demoSubjects = [];
-
-const demoTasks = [];
-
 const DEMO_TASKS_KEY = "studyDashboardDemoTasks";
-
-const demoSessions = [];
 
 const subjectIcons = {
   math: "i-target",
   physics: "i-flask",
   english: "i-book",
   sat: "i-spark",
-};
-
-const testTemplates = {
-  math: [
-    ["Квадратные уравнения", "Средний", "20 вопросов", 87],
-    ["Производные", "Сложный", "25 вопросов", 72],
-    ["Геометрия", "Средний", "15 вопросов", null],
-    ["Мини-тест по формулам", "Лёгкий", "10 вопросов", 95],
-  ],
-  physics: [
-    ["Механика: законы Ньютона", "Средний", "18 вопросов", 74],
-    ["Электромагнетизм", "Сложный", "22 вопроса", 61],
-    ["Лабораторные формулы", "Лёгкий", "12 вопросов", 91],
-  ],
-  english: [
-    ["Academic Writing", "Сложный", "20 вопросов", 85],
-    ["Reading Practice", "Средний", "18 вопросов", 88],
-    ["Vocabulary Sprint", "Лёгкий", "30 слов", 96],
-  ],
-  sat: [
-    ["SAT Math: No Calculator", "Сложный", "20 вопросов", 71],
-    ["Reading and Writing", "Средний", "24 вопроса", 78],
-    ["Timed Practice", "Сложный", "35 минут", null],
-  ],
 };
 
 function getToken() {
@@ -408,7 +392,8 @@ function escapeHtml(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function currentLanguage() {
@@ -1409,25 +1394,6 @@ function getSubjectTasks(subject) {
     });
 }
 
-function taskPracticeLevel(task) {
-  return task.priority === "high" ? "Сложный" : task.priority === "low" ? "Лёгкий" : "Средний";
-}
-
-function getSubjectPracticeItems(subject) {
-  return getSubjectTasks(subject).map((task) => {
-    const minutes = Math.max(5, Number(task.estimatedMins || 30));
-    const rawScore = Number(task.focusScore);
-    return {
-      task,
-      title: task.title,
-      level: taskPracticeLevel(task),
-      meta: `${minutes} мин`,
-      score: task.status === "done" && Number.isFinite(rawScore) ? clampNumber(rawScore, 1, 100, 70) : null,
-      prompt: `Создай мини-тест по задаче "${task.title}" для предмета ${subject.name}`,
-    };
-  });
-}
-
 function renderSubjectEmpty(message, actionHtml = "") {
   return `
     <div class="empty subject-empty">
@@ -1439,20 +1405,20 @@ function renderSubjectEmpty(message, actionHtml = "") {
 
 function renderMaterialPlaceholders(selected) {
   const subjectName = selected?.name || "предмету";
-  const placeholders = [
-    ["Учебник", `Учебник по ${subjectName}`, "Базовая теория и ключевые правила"],
-    ["Конспект", "Короткие конспекты", "Главные формулы, термины и примеры"],
-    ["Практика", "Сборник заданий", "Упражнения для закрепления темы"],
+  const actions = [
+    ["Конспект", "Короткий конспект", "Главные формулы, термины и примеры", `Собери короткий конспект по предмету ${subjectName}`],
+    ["Разбор", "Разбор сложной темы", "Объяснение простыми словами с примерами", `Объясни самую сложную тему по предмету ${subjectName} простыми словами`],
+    ["Практика", "Задания для практики", "Упражнения для закрепления темы", `Составь 5 практических заданий по предмету ${subjectName} с ответами`],
   ];
 
-  return placeholders.map(([kind, title, meta]) => `
-    <div class="test-item material-placeholder">
+  return actions.map(([kind, title, meta, prompt]) => `
+    <button class="test-item ai-quick" data-prompt="${escapeHtml(prompt)}" type="button">
       <span class="test-icon ${subjectPillClass(selected)}">${icon("i-book")}</span>
       <strong>${escapeHtml(title)}</strong>
       <span class="pill ${subjectPillClass(selected)}">${escapeHtml(kind)}</span>
       <span class="test-meta">${escapeHtml(meta)}</span>
-      <span class="score muted">скоро</span>
-    </div>
+      <span class="score muted">→ ИИ</span>
+    </button>
   `).join("");
 }
 
@@ -1491,27 +1457,18 @@ function renderSubjectTabContent(selected, tests, selectedKind) {
     return;
   }
 
-  const practiceItems = getSubjectPracticeItems(selected);
-  if (!practiceItems.length) {
-    wrap.innerHTML = renderSubjectEmpty(
-      "По этому предмету пока нет тестов для практики.",
-      `<button class="primary-button ai-quick" data-prompt="Создай мини-тест по предмету ${escapeHtml(selected.name)}" type="button">Сгенерировать тест</button>`
-    );
-    return;
-  }
-
-  wrap.innerHTML = practiceItems.map(({ title, level, meta, score, prompt }) => {
-    const scoreClass = score == null ? "bad" : score >= 85 ? "good" : score >= 70 ? "mid" : "bad";
-    return `
-      <button class="test-item" data-action="start-test" data-prompt="${escapeHtml(prompt)}" type="button">
-        <span class="test-icon">${icon(subjectIcons[selectedKind] || "i-book")}</span>
-        <strong>${escapeHtml(title)}</strong>
-        <span class="pill ${level === "Сложный" ? "purple" : level === "Лёгкий" ? "green" : "blue"}">${escapeHtml(level)}</span>
-        <span class="test-meta">${escapeHtml(meta)}</span>
-        <span class="score ${scoreClass}">${score == null ? "не пройдено" : `${score}%`}</span>
-      </button>
-    `;
-  }).join("");
+  // Вкладка «Тесты»: настоящие пробники живут в разделе «Экзамены»
+  wrap.innerHTML = `
+    <div class="subject-exams-cta">
+      <p>${translateValue("Пробные тесты с таймером, банками вопросов и разбором ответов находятся в разделе «Экзамены».")}</p>
+      <div class="subject-exams-buttons">
+        <button class="ghost-button" data-action="exam-open" data-exam="ent" type="button">🇰🇿 ЕНТ</button>
+        <button class="ghost-button" data-action="exam-open" data-exam="ege" type="button">🇷🇺 ЕГЭ</button>
+        <button class="ghost-button" data-action="exam-open" data-exam="ielts" type="button">🌍 IELTS</button>
+        <button class="ghost-button" data-action="exam-open" data-exam="sat" type="button">🇺🇸 SAT</button>
+        <button class="primary-button ai-quick" data-prompt="Создай мини-тест по предмету ${escapeHtml(selected.name)}" type="button">${translateValue("Мини-тест от ИИ")}</button>
+      </div>
+    </div>`;
 }
 
 function renderSubjects() {
@@ -2592,9 +2549,7 @@ function bindEvents() {
         return;
       }
       if (actionName === "all-tests") {
-        state.subjectTab = "tests";
-        renderSubjects();
-        toast("Показаны все тесты по выбранному предмету");
+        setActiveRoute("exams");
         return;
       }
       if (actionName === "start-test" || actionName === "event-ai") {

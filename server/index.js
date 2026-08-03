@@ -32,6 +32,9 @@ function normalizeAppUrl(value, fallback) {
 const PORT = Number(process.env.PORT || 3000);
 const HOST = String(process.env.HOST || "0.0.0.0").trim();
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+if (JWT_SECRET === "dev_secret" && process.env.NODE_ENV === "production") {
+  console.warn("SECURITY WARNING: JWT_SECRET is not set. Set a long random JWT_SECRET before exposing this server.");
+}
 const AI_PROVIDER = String(process.env.AI_PROVIDER || "auto").trim().toLowerCase();
 const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || "").trim();
 const OPENAI_MODEL = String(process.env.OPENAI_MODEL || "gpt-5-mini").trim();
@@ -93,13 +96,23 @@ function loadStore() {
   try {
     const raw = fs.readFileSync(dataFile, "utf8");
     return { ...createEmptyStore(), ...JSON.parse(raw || "{}") };
-  } catch {
+  } catch (error) {
+    // Never silently wipe user data: keep the corrupt file for manual recovery.
+    try {
+      if (fs.existsSync(dataFile)) {
+        fs.copyFileSync(dataFile, `${dataFile}.corrupt-${Date.now()}`);
+        console.error("data.json is corrupt — a backup copy was saved next to it.", error?.message || error);
+      }
+    } catch {}
     return createEmptyStore();
   }
 }
 
 function saveStore(store) {
-  fs.writeFileSync(dataFile, JSON.stringify(store, null, 2));
+  // Atomic write: a crash mid-write must not truncate the only copy of user data.
+  const tmpFile = `${dataFile}.tmp`;
+  fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2));
+  fs.renameSync(tmpFile, dataFile);
 }
 
 function isEmailDeliveryConfigured() {
@@ -201,7 +214,7 @@ async function sendMailMessage({ to, subject, text, html }) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(
-        payload?.message || payload?.error || `Resend error: HTTP `
+        payload?.message || payload?.error || `Resend error: HTTP ${response.status}`
       );
     }
 
@@ -418,7 +431,16 @@ const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/calendar", "/pro
 const authRoutes = ["/login", "/register", "/reset", "/confirm", "/almost", "/auth"];
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+// Only allow the app's own origin and local development hosts (cookie auth + reflected
+// origins would otherwise leave the API open to cross-site requests).
+const allowedOrigins = new Set([APP_URL, `http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`]);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "48mb" }));
 app.use(cookieParser());
 
@@ -703,15 +725,6 @@ function buildFocusMode(store, userId) {
       : "Режим устойчивый. Можно идти через 2–3 фокус-сессии по 25–45 минут.";
   return { risk, avgMood: Number(avgMood.toFixed(1)), overdueTasks, todayDone, todayMinutes, recommendation };
 }
-function buildExamReply() {
-  return [
-    "Экзаменационная стратегия:",
-    "— сначала диагностика: один тайм-блок под реальный лимит времени;",
-    "— затем разложи ошибки на знание, невнимательность и темп;",
-    "— 70% времени трать на повторяющиеся ошибки, а не на любимые темы;",
-    "— за 48 часов до теста не учи новое, а только закрепляй шаблоны."
-  ].join("\n");
-}
 function isSuspiciousLiveReply(prompt, text) {
   const normalizedPrompt = String(prompt || "").trim().toLowerCase();
   const normalizedText = String(text || "").trim().toLowerCase();
@@ -724,244 +737,6 @@ function isSuspiciousLiveReply(prompt, text) {
   }
   return false;
 }
-function extractPromptBlock(text, startLabel, endLabels = []) {
-  const value = String(text || "");
-  const startIndex = value.indexOf(startLabel);
-  if (startIndex === -1) return "";
-
-  const contentStart = startIndex + startLabel.length;
-  let contentEnd = value.length;
-  for (const label of endLabels) {
-    const nextIndex = value.indexOf(label, contentStart);
-    if (nextIndex !== -1 && nextIndex < contentEnd) contentEnd = nextIndex;
-  }
-  return value.slice(contentStart, contentEnd).trim();
-}
-
-function cleanPromptLine(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function parseSatQuestionPrompt(prompt) {
-  const text = String(prompt || "");
-  if (!text.includes("SAT section:") || !text.includes("Question:") || !text.includes("Choices:")) {
-    return null;
-  }
-
-  const selectedMatch = text.match(/(?:Мой ответ|Ответ ученика|My answer|Student answer)\s*:\s*([^\n]+)/i);
-  const correctAnswer = cleanPromptLine(extractPromptBlock(text, "Correct answer:", ["Official explanation:"]));
-  return {
-    section: cleanPromptLine(extractPromptBlock(text, "SAT section:", ["Topic:"])),
-    topic: cleanPromptLine(extractPromptBlock(text, "Topic:", ["Question ID:", "Source:", "Question:"])),
-    questionText: extractPromptBlock(text, "Question:", ["Choices:"]),
-    choicesText: extractPromptBlock(text, "Choices:", ["Correct answer:", "Official explanation:"]),
-    correctAnswer: correctAnswer && correctAnswer !== "Not available" ? correctAnswer : "",
-    rationale: extractPromptBlock(text, "Official explanation:", []),
-    selectedAnswer: selectedMatch ? cleanPromptLine(selectedMatch[1]) : "",
-  };
-}
-
-function findChoiceForAnswer(choicesText, correctAnswer) {
-  const answer = cleanPromptLine(correctAnswer).toLowerCase();
-  if (!answer) return "";
-  return String(choicesText || "")
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .find((line) => line.toLowerCase().startsWith(`${answer}.`)) || "";
-}
-
-function buildSatQuestionReply(sat) {
-  const answerChoice = findChoiceForAnswer(sat.choicesText, sat.correctAnswer);
-  const selected = sat.selectedAnswer && !/не выбрал|not selected/i.test(sat.selectedAnswer)
-    ? sat.selectedAnswer
-    : "";
-  const selectedLine = selected
-    ? selected.toLowerCase() === sat.correctAnswer.toLowerCase()
-      ? `Твой ответ: ${selected}. Это правильно.`
-      : `Твой ответ: ${selected}. Правильный ответ: ${sat.correctAnswer}.`
-    : "Ты пока не выбрал ответ.";
-  const rationale = sat.rationale && sat.rationale !== "Not available"
-    ? sat.rationale.slice(0, 900)
-    : "В локальных данных нет официального объяснения, но ключ ответа есть.";
-
-  if (!sat.correctAnswer) {
-    return [
-      "Я вижу SAT-вопрос и варианты ответа.",
-      "Но в данных для этого вопроса нет ключа, поэтому локальный режим не должен угадывать ответ.",
-      "",
-      `Вопрос: ${cleanPromptLine(sat.questionText).slice(0, 500)}`,
-      "",
-      "Лучше включить Live AI или добавить правильный ответ в question bank."
-    ].join("\n");
-  }
-
-  return [
-    `Я вижу этот SAT-вопрос. Правильный ответ: ${sat.correctAnswer}.`,
-    answerChoice ? `Полный вариант: ${answerChoice}.` : "",
-    selectedLine,
-    "",
-    "Почему:",
-    rationale,
-    "",
-    "Как думать на похожих вопросах:",
-    "1. Сначала определи, что именно проверяется: смысл, грамматика, переход, пунктуация или структура.",
-    "2. Подставь каждый вариант в предложение и проверь, не ломает ли он логику текста.",
-    "3. Убери ответы, которые добавляют лишний смысл или грамматически не подходят.",
-  ].filter(Boolean).join("\n");
-}
-
-function buildAiReply(prompt, context = {}) {
-  const text = String(prompt || "").trim();
-  if (!text) return "Напиши, что нужно разобрать: тему, предмет или цель. Например: \"объясни интегралы\", \"составь план по физике\" или \"сделай мини-тест\".";
-  const lowered = text.toLowerCase();
-  const subjectName = context.topSubject?.name || "ключевому предмету";
-  const overdue = context.metrics?.overdueTasks || 0;
-  const completion = context.metrics?.completionRate || 0;
-  const streak = context.analytics?.streak || 0;
-  const weakSubject = context.analytics?.dailyReview?.weakSubject?.name || subjectName;
-  const satQuestion = parseSatQuestionPrompt(text);
-  if (satQuestion) return buildSatQuestionReply(satQuestion);
-
-  if (/^(привет|салам|здравствуй|здравствуйте|hello|hi|hey)[!.\s]*$/i.test(lowered)) {
-    return [
-      "Привет! Я на месте.",
-      "Могу помочь с учебой: объяснить тему простыми словами, составить план, сделать мини-тест, карточки или разобрать задачу.",
-      `Сейчас в фокусе: ${subjectName}.`,
-      "Напиши тему или нажми быстрый инструмент справа."
-    ].join("\n");
-  }
-
-  if (lowered.includes("интеграл")) {
-    return [
-      "Интеграл простыми словами — это способ сложить много маленьких кусочков в один общий результат.",
-      "",
-      "Главная идея:",
-      "1. Производная отвечает на вопрос: как быстро меняется функция.",
-      "2. Интеграл отвечает на вопрос: сколько всего накопилось.",
-      "",
-      "Картинка в голове: если график показывает скорость, то интеграл показывает пройденный путь. Если график показывает высоту кривой, то определенный интеграл показывает площадь под этой кривой.",
-      "",
-      "Пример:",
-      "Интеграл от 2x равен x^2 + C, потому что производная x^2 снова дает 2x.",
-      "",
-      "Как учить:",
-      "1. Повтори производные.",
-      "2. Выучи базовые формулы интегралов.",
-      "3. Реши 5 простых примеров на обратную производную.",
-      "4. Потом переходи к площадям под графиком."
-    ].join("\n");
-  }
-
-  if (lowered.includes("производн")) {
-    return [
-      "Производная показывает, как быстро меняется функция в конкретной точке.",
-      "Если функция — это путь, то производная — это скорость.",
-      "",
-      "Пример: у функции x^2 производная равна 2x. Значит, чем больше x, тем быстрее растет график.",
-      "",
-      "Мини-план:",
-      "1. Разобрать смысл наклона касательной.",
-      "2. Выучить базовые правила: степень, сумма, произведение.",
-      "3. Решить 10 примеров от простых к сложным."
-    ].join("\n");
-  }
-
-  if (lowered.includes("мини-тест") || lowered.includes("тест")) {
-    return [
-      "Мини-тест на 5 вопросов:",
-      "1. Объясни тему одним предложением.",
-      "2. Назови главную формулу или правило.",
-      "3. Реши один базовый пример без подсказки.",
-      "4. Найди типичную ошибку в решении.",
-      "5. Составь похожую задачу сам.",
-      "",
-      "Если хочешь, напиши конкретную тему, и я сделаю тест уже по ней."
-    ].join("\n");
-  }
-
-  if (lowered.includes("карточ")) {
-    return [
-      "Карточки для повторения:",
-      "1. Термин -> короткое определение.",
-      "2. Формула -> когда применяется.",
-      "3. Тип задачи -> первый шаг решения.",
-      "4. Частая ошибка -> как проверить себя.",
-      "5. Пример -> ответ без полного решения.",
-      "",
-      "Лучший режим: 10 карточек утром, 10 вечером, ошибки переносить на следующий день."
-    ].join("\n");
-  }
-
-  if (lowered.includes("конспект")) {
-    return [
-      "Структура короткого конспекта:",
-      "1. Что это за тема.",
-      "2. Главная идея в 2-3 строках.",
-      "3. Формулы или правила.",
-      "4. Один разобранный пример.",
-      "5. Типичные ошибки.",
-      "6. Что решить для закрепления.",
-      "",
-      "Напиши тему, и я соберу конспект прямо по ней."
-    ].join("\n");
-  }
-
-  if (lowered.includes("эссе") || lowered.includes("essay")) {
-    return [
-      "Для эссе держи простую структуру:",
-      "1. Вступление: перефразируй тему и дай позицию.",
-      "2. Аргумент 1: тезис, объяснение, пример.",
-      "3. Аргумент 2: тезис, объяснение, пример.",
-      "4. Контраргумент, если формат требует.",
-      "5. Вывод: коротко повтори позицию.",
-      "",
-      "Скинь тему эссе, и я помогу собрать план и сильные аргументы."
-    ].join("\n");
-  }
-
-  if (lowered.includes("что такое cat") || lowered === "cat") {
-    return [
-      "CAT чаще всего означает Common Admission Test — экзамен для поступления в бизнес-школы.",
-      "Обычно в нём проверяют математику, логику, чтение и скорость решения.",
-      "Если ты имел в виду другой CAT, уточни контекст: экзамен, сертификат, курс или термин.",
-      "Могу дальше сразу помочь: объяснить структуру экзамена или составить план подготовки."
-    ].join("\n");
-  }
-  if (["экзам", "sat", "ielts", "test", "cat"].some((x) => lowered.includes(x))) return buildExamReply();
-  if (lowered.includes("план") || lowered.includes("schedule") || lowered.includes("roadmap")) {
-    const blocks = (context.analytics?.todayPlan?.blocks || []).map((b, i) => `${i + 1}) ${b.label} — ${b.duration} мин.`).join("\n") || "1) 25 минут теория.\n2) 40 минут практика.\n3) 15 минут разбор ошибок.";
-    return [
-      `План по ${subjectName}:`,
-      blocks,
-      overdue > 0 ? `Сначала закрой ${overdue} просроченных задач(и).` : "Просроченных задач нет — это хороший старт.",
-      `Серия учебных дней подряд: ${streak}.`,
-      "Итог дня должен быть измеримым: решённый сет, конспект или тест."
-    ].join("\n");
-  }
-  if (lowered.includes("мотива") || lowered.includes("устал") || lowered.includes("выгор")) {
-    return [
-      "Проблема выглядит как перегрузка, а не как отсутствие характера.",
-      `Текущий уровень исполнения задач: ${completion}%.`,
-      `Самый недокормленный предмет недели: ${weakSubject}.`,
-      "Сократи план до двух обязательных блоков на день.",
-      "Удали декоративные задачи, которые не двигают к экзамену или дедлайну."
-    ].join("\n");
-  }
-  return [
-    `Понял запрос: ${text}.`,
-    "Я могу помочь, но мне нужно чуть больше контекста.",
-    "",
-    "Напиши одним сообщением:",
-    "1. Предмет.",
-    "2. Тему.",
-    "3. Что нужно получить: объяснение, план, тест, карточки или решение.",
-    "",
-    `По текущему дашборду главный фокус: ${subjectName}.`,
-    overdue > 0 ? `Еще есть ${overdue} просроченных задач — их лучше разобрать первыми.` : "Критических просрочек нет.",
-    `Серия дней с учебой: ${streak}.`
-  ].join("\n");
-}
-
 function normalizeAiHistory(history = []) {
   if (!Array.isArray(history)) return [];
   return history
@@ -1642,7 +1417,7 @@ app.post("/api/auth/login", safe(async (req, res) => {
   if (!ok) return res.status(401).json({ error: "Wrong email or password" });
   if (!user.isEmailVerified) return res.status(403).json({ error: "Confirm your email before signing in" });
   const token = signToken(user.id);
-  res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+  res.cookie("token", token, { httpOnly: true, sameSite: "lax", secure: APP_URL.startsWith("https"), maxAge: 7 * 24 * 3600 * 1000 });
   res.json({ ok: true, token, user: publicUser(user) });
 }));
 
@@ -1988,7 +1763,7 @@ app.get("/api/dashboard", authMiddleware, safe(async (req, res) => {
   });
 }));
 
-app.get(["/api/analytics","/api/insights"], authMiddleware, safe(async (req, res) => {
+app.get("/api/analytics", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
   const { tasks, sessions, goals, aiRequests } = getUserData(store, req.userId);
   const dailyReview = buildDailyReview(store, req.userId);
@@ -2028,52 +1803,6 @@ app.get("/api/ai-status", authMiddleware, safe(async (req, res) => {
 }));
 
 // AI
-app.get("/api/ai-plan", authMiddleware, safe(async (req, res) => {
-  const store = loadStore();
-  const prompt = String(req.query?.prompt || "").trim();
-  const language = normalizeLanguage(req.query?.language);
-  if (!prompt) {
-    return res.json({
-      ok: true,
-      note: "Передайте query-параметр prompt или используйте POST /api/ai-plan.",
-      example: "/api/ai-plan?prompt=" + encodeURIComponent("Составь план SAT Math на 7 дней"),
-    });
-  }
-  const { tasks } = getUserData(store, req.userId);
-  const subjectBreakdown = getSubjectBreakdown(store, req.userId);
-  const analytics = {
-    streak: getStreak(store.studySessions.filter((x) => x.userId === req.userId)),
-    dailyReview: buildDailyReview(store, req.userId),
-    todayPlan: buildTodayPlan(store, req.userId),
-  };
-  const topSubject = subjectBreakdown[0] || null;
-  const metrics = {
-    overdueTasks: tasks.filter((t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < startOfToday()).length,
-    completionRate: tasks.length ? Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100) : 0,
-  };
-  const openTasks = tasks
-    .filter((task) => task.status !== "done")
-    .sort((a, b) => new Date(a.dueDate || "2999-01-01") - new Date(b.dueDate || "2999-01-01"))
-    .slice(0, 8)
-    .map((task) => ({ title: task.title, subject: store.subjects.find((subject) => subject.id === task.subjectId)?.name || null, dueDate: task.dueDate || null }));
-  const aiResult = await generateAiResponse(prompt, { topSubject, metrics, analytics, subjects: subjectBreakdown, openTasks, language }, []);
-  const taskDrafts = buildAiTaskDrafts(prompt, aiResult.text, store, req.userId);
-  const payload = {
-    prompt,
-    response: aiResult.text,
-    aiSource: aiResult.source,
-    aiMode: aiResult.mode,
-    tried: aiResult.tried || [],
-    actions: {
-      taskDrafts,
-      autoCreateTasks: false,
-    },
-    createdAt: nowIso(),
-    via: "get",
-  };
-  res.json(payload);
-}));
-
 app.post("/api/ai-plan", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
   const attachments = normalizeAiAttachments(req.body?.attachments || []);
@@ -2196,12 +1925,6 @@ app.delete("/api/exam-attempts/:id", authMiddleware, safe(async (req, res) => {
   store.examAttempts.splice(idx, 1);
   saveStore(store);
   res.json({ ok: true });
-}));
-
-app.post("/api/bootstrap-demo", authMiddleware, safe(async (req, res) => {
-  // Starter demo data is intentionally disabled.
-  // New users must begin with empty Tasks, Subjects, and Calendar tabs.
-  res.json({ ok: true, seeded: false, message: "Demo data is disabled" });
 }));
 
 app.use((err, req, res, next) => {
