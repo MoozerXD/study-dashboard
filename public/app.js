@@ -37,6 +37,9 @@ const EN_TEXT = {
   "Дашборд": "Dashboard",
   "Задачи": "Tasks",
   "Предметы": "Subjects",
+  "Экзамены": "Exams",
+  "Подготовка к экзаменам": "Exam preparation",
+  "Пробные тесты ЕНТ, ЕГЭ, IELTS и SAT: реальный формат, таймер, разбор ответов и отслеживание прогресса.": "Mock tests for UNT, EGE, IELTS and SAT: realistic format, timer, answer review and progress tracking.",
   "Календарь": "Calendar",
   "ИИ-помощник": "AI assistant",
   "Профиль": "Profile",
@@ -2114,6 +2117,7 @@ function renderAll() {
   renderCalendar();
   renderAi();
   renderProfile();
+  window.StudyExams?.refresh();
   applyLanguage();
 }
 
@@ -2158,6 +2162,7 @@ function routePaths() {
     dashboard: "/dashboard",
     tasks: "/tasks",
     subjects: "/subjects",
+    exams: "/exams",
     calendar: "/calendar",
     ai: "/ai",
     profile: "/profile",
@@ -2179,6 +2184,7 @@ function setActiveRoute(route, options = {}) {
   document.querySelectorAll(".route").forEach((section) => section.classList.add("hidden"));
   document.getElementById(`route-${nextRoute}`)?.classList.remove("hidden");
   if (nextRoute === "profile") renderProfile();
+  if (nextRoute === "exams") window.StudyExams?.onEnter();
   if (options.push !== false && window.location.pathname !== routes[nextRoute]) {
     window.history.pushState({ route: nextRoute }, "", routes[nextRoute]);
   }

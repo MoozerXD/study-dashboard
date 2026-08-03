@@ -81,6 +81,7 @@ function createEmptyStore() {
     materials: [],
     studySessions: [],
     aiRequests: [],
+    examAttempts: [],
   };
 }
 
@@ -413,12 +414,12 @@ async function syncLegacyAuthToDatabase() {
 }
 
 const publicDir = path.join(__dirname, "../public");
-const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/calendar", "/profile", "/goals", "/insights", "/ai", "/materials"];
+const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/calendar", "/profile", "/goals", "/insights", "/ai", "/materials", "/exams"];
 const authRoutes = ["/login", "/register", "/reset", "/confirm", "/almost", "/auth"];
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "48mb" }));
 app.use(cookieParser());
 
 app.get("/index.html", (req, res) => {
@@ -2128,6 +2129,73 @@ app.post("/api/ai-plan", authMiddleware, safe(async (req, res) => {
 app.get("/api/ai-history", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
   res.json(sortByCreatedDesc(store.aiRequests.filter((x) => x.userId === req.userId)).slice(0, 20));
+}));
+
+const EXAM_IDS = ["ent", "ege", "ielts", "sat"];
+const ATTEMPTS_PER_USER_LIMIT = 500;
+
+function sanitizeAttemptRows(rows, keyField) {
+  if (!Array.isArray(rows)) return [];
+  return rows.slice(0, 60).map((row) => ({
+    [keyField]: String(row?.[keyField] || "").slice(0, 120),
+    sectionId: String(row?.sectionId || "").slice(0, 60),
+    correct: clamp(row?.correct, 0, 10000),
+    total: clamp(row?.total, 0, 10000),
+  })).filter((row) => row[keyField] && row.total > 0);
+}
+
+app.get("/api/exam-attempts", authMiddleware, safe(async (req, res) => {
+  const store = loadStore();
+  let attempts = store.examAttempts.filter((x) => x.userId === req.userId);
+  const examId = String(req.query.examId || "").trim();
+  if (examId) attempts = attempts.filter((x) => x.examId === examId);
+  res.json(sortByCreatedDesc(attempts).slice(0, 200));
+}));
+
+app.post("/api/exam-attempts", authMiddleware, safe(async (req, res) => {
+  const body = req.body || {};
+  const examId = String(body.examId || "").trim();
+  if (!EXAM_IDS.includes(examId)) return res.status(400).json({ error: "Unknown examId" });
+
+  const sections = sanitizeAttemptRows(body.sections, "sectionId");
+  if (!sections.length) return res.status(400).json({ error: "sections required" });
+
+  const attempt = {
+    id: uid(),
+    userId: req.userId,
+    examId,
+    mode: ["full", "section", "practice"].includes(body.mode) ? body.mode : "section",
+    sections,
+    topics: sanitizeAttemptRows(body.topics, "topic"),
+    score: {
+      correct: clamp(body.score?.correct, 0, 10000),
+      total: clamp(body.score?.total, 0, 10000),
+      scaled: body.score?.scaled == null ? null : clamp(body.score.scaled, 0, 10000),
+      scaledLabel: body.score?.scaledLabel == null ? null : String(body.score.scaledLabel).slice(0, 40),
+    },
+    durationSec: clamp(body.durationSec, 0, 24 * 3600),
+    createdAt: nowIso(),
+  };
+
+  const store = loadStore();
+  store.examAttempts.push(attempt);
+  // Keep the newest attempts if a user somehow exceeds the cap
+  const mine = store.examAttempts.filter((x) => x.userId === req.userId);
+  if (mine.length > ATTEMPTS_PER_USER_LIMIT) {
+    const excess = new Set(sortByCreatedDesc(mine).slice(ATTEMPTS_PER_USER_LIMIT).map((x) => x.id));
+    store.examAttempts = store.examAttempts.filter((x) => !excess.has(x.id));
+  }
+  saveStore(store);
+  res.status(201).json(attempt);
+}));
+
+app.delete("/api/exam-attempts/:id", authMiddleware, safe(async (req, res) => {
+  const store = loadStore();
+  const idx = store.examAttempts.findIndex((x) => x.id === req.params.id && x.userId === req.userId);
+  if (idx === -1) return res.status(404).json({ error: "Attempt not found" });
+  store.examAttempts.splice(idx, 1);
+  saveStore(store);
+  res.json({ ok: true });
 }));
 
 app.post("/api/bootstrap-demo", authMiddleware, safe(async (req, res) => {
