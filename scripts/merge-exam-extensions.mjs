@@ -1,0 +1,65 @@
+// Merges *-ext*.json extension files into the main exam banks and validates the result.
+// Usage: node scripts/merge-exam-extensions.mjs
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const examsDir = path.join(root, 'public/data/exams');
+
+function validate(exam) {
+  const errors = [];
+  const ids = new Set();
+  const sectionIds = new Set(exam.sections.map((s) => s.id));
+  const passageIds = new Set((exam.passages || []).map((p) => p.id));
+  for (const q of exam.questions) {
+    if (ids.has(q.id)) errors.push(`duplicate id ${q.id}`);
+    ids.add(q.id);
+    if (!sectionIds.has(q.sectionId)) errors.push(`${q.id}: unknown sectionId ${q.sectionId}`);
+    if (q.passageId && !passageIds.has(q.passageId)) errors.push(`${q.id}: unknown passageId ${q.passageId}`);
+    if (q.type === 'input') {
+      if (!Array.isArray(q.answers) || !q.answers.length) errors.push(`${q.id}: input without answers`);
+    } else {
+      if (!Array.isArray(q.choices) || q.choices.length < 2) errors.push(`${q.id}: bad choices`);
+      else if (q.correctIndex == null || q.correctIndex < 0 || q.correctIndex >= q.choices.length) errors.push(`${q.id}: bad correctIndex`);
+    }
+    if (!q.explanation) errors.push(`${q.id}: missing explanation`);
+  }
+  return errors;
+}
+
+for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
+  const mainPath = path.join(examsDir, `${examId}.json`);
+  const extFiles = fs.readdirSync(examsDir).filter((f) => f.startsWith(`${examId}-ext`) && f.endsWith('.json'));
+  if (!extFiles.length) continue;
+  const exam = JSON.parse(fs.readFileSync(mainPath, 'utf8'));
+  const existingIds = new Set(exam.questions.map((q) => q.id));
+  const existingPassages = new Set((exam.passages || []).map((p) => p.id));
+  let added = 0, addedPassages = 0, skipped = 0;
+  for (const file of extFiles) {
+    const ext = JSON.parse(fs.readFileSync(path.join(examsDir, file), 'utf8'));
+    for (const p of ext.passages || []) {
+      if (existingPassages.has(p.id)) { skipped++; continue; }
+      (exam.passages ||= []).push(p);
+      existingPassages.add(p.id);
+      addedPassages++;
+    }
+    for (const q of ext.questions || []) {
+      if (existingIds.has(q.id)) { skipped++; continue; }
+      exam.questions.push(q);
+      existingIds.add(q.id);
+      added++;
+    }
+  }
+  const errors = validate(exam);
+  if (errors.length) {
+    console.error(`${examId}: VALIDATION FAILED, not writing:`);
+    for (const e of errors.slice(0, 20)) console.error('  -', e);
+    process.exitCode = 1;
+    continue;
+  }
+  fs.writeFileSync(mainPath, JSON.stringify(exam));
+  for (const file of extFiles) fs.unlinkSync(path.join(examsDir, file));
+  console.log(`${examId}: +${added} questions, +${addedPassages} passages (skipped ${skipped}); total ${exam.questions.length}. Merged: ${extFiles.join(', ')}`);
+}
+console.log('done');

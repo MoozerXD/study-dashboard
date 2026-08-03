@@ -1030,9 +1030,24 @@
     }
   });
 
+  // an active timed attempt would be lost on accidental reload/close
+  window.addEventListener("beforeunload", (event) => {
+    if (ex.runner && !ex.runner.finished && ex.runner.answers.size > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+
   // keyboard shortcuts inside the runner
   document.addEventListener("keydown", (event) => {
-    if (!ex.runner || ex.runner.finished) return;
+    if (!ex.runner) return;
+    if (event.key === "Escape" && !ex.runner.finished) {
+      // app.js also listens for Escape to close the confirm modal we are about to open
+      event.stopImmediatePropagation();
+      exitRunner();
+      return;
+    }
+    if (ex.runner.finished) return;
     if (event.target.matches("input, textarea")) return;
     const question = currentQuestion();
     if (!question) return;
