@@ -132,6 +132,10 @@
       return { scaled: Math.round(pct * 100), scaledLabel: `${correct}/${total} · ${Math.round(pct * 100)}%` };
     }
     if (type === "band") {
+      // Band conversion is defined for the Reading module; other sections report raw score.
+      if (!sectionRows.some((r) => r.sectionId === "reading")) {
+        return { scaled: Math.round(pct * 100), scaledLabel: `${correct}/${total} · ${Math.round(pct * 100)}%` };
+      }
       let band = 2.5;
       for (const [threshold, value] of IELTS_BANDS) { if (pct >= threshold) { band = value; break; } }
       return { scaled: band, scaledLabel: `Band ${band}` };

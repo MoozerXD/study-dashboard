@@ -41,6 +41,7 @@ const EN_TEXT = {
   "Подготовка к экзаменам": "Exam preparation",
   "Все экзамены": "All exams",
   "Все пробные тесты": "All mock tests",
+  "Пробные тесты ЕНТ, ЕГЭ, IELTS, SAT": "Mock tests: UNT, EGE, IELTS, SAT",
   "Пробные тесты с таймером, банками вопросов и разбором ответов находятся в разделе «Экзамены».": "Timed mock tests with question banks and answer reviews live in the Exams section.",
   "Мини-тест от ИИ": "AI mini-test",
   "Короткий конспект": "Short summary",
@@ -938,6 +939,7 @@ function getSearchResults(query) {
 
   [
     { title: "Дашборд", meta: "Обзор дня и прогресс", icon: "i-home", route: "dashboard", keywords: "дашборд dashboard обзор главная" },
+    { title: "Экзамены", meta: "Пробные тесты ЕНТ, ЕГЭ, IELTS, SAT", icon: "i-list", route: "exams", keywords: "экзамен экзамены ент егэ ielts sat пробник тест mock подготовка unt ege" },
     { title: "Календарь", meta: "Расписание и события", icon: "i-calendar", route: "calendar", keywords: "календарь расписание план день неделя месяц" },
     { title: "ИИ-помощник", meta: "Объяснения, планы, тесты", icon: "i-spark", route: "ai", keywords: "ии ai помощник объясни план тест карточки" },
     { title: "Профиль", meta: "Аккаунт, статистика и настройки", icon: "i-user", route: "profile", keywords: "профиль аккаунт пользователь настройки имя email" },
