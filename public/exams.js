@@ -491,7 +491,8 @@
   }
 
   /* ---------- test runner ---------- */
-  function buildRunner(exam, sectionIds, { practice = false, count = null, topic = null } = {}) {
+  function buildRunner(exam, sectionIds, options = {}) {
+    const { practice = false, count = null, topic = null } = options;
     const sections = [];
     for (const sectionId of sectionIds) {
       const sectionMeta = exam.sections.find((s) => s.id === sectionId);
@@ -515,6 +516,7 @@
       exam,
       practice,
       topic,
+      buildArgs: { sectionIds, options },
       sections,
       sectionIndex: 0,
       questionIndex: 0,
@@ -813,6 +815,7 @@
               ${weakRows.map((row) => `<div class="exam-result-weak-row"><span>${esc(row.topic)}</span><small>${row.correct}/${row.total}</small></div>`).join("")}
             </div>` : ""}
           <div class="exam-result-actions">
+            <button class="ghost-button" data-action="exam-retake" type="button">${t("Пройти ещё раз", "Take again")}</button>
             <button class="ghost-button" data-action="exam-review" type="button">${t("Разбор ответов", "Review answers")}</button>
             <button class="primary-button" data-action="exam-close-result" type="button">${t("Готово", "Done")}</button>
           </div>
@@ -1018,6 +1021,12 @@
         if (!sure) return;
       }
       finishSection();
+      return;
+    }
+    if (action === "exam-retake") {
+      const { exam: runExam, buildArgs } = ex.runner;
+      stopRunner();
+      startRunner(buildRunner(runExam, buildArgs.sectionIds, buildArgs.options));
       return;
     }
     if (action === "exam-review") { ex.runner.review = true; renderRunner(); return; }
