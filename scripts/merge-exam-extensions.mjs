@@ -19,6 +19,11 @@ function validate(exam) {
     if (q.passageId && !passageIds.has(q.passageId)) errors.push(`${q.id}: unknown passageId ${q.passageId}`);
     if (q.type === 'input') {
       if (!Array.isArray(q.answers) || !q.answers.length) errors.push(`${q.id}: input without answers`);
+    } else if (q.type === 'multi') {
+      if (!Array.isArray(q.choices) || q.choices.length < 4) errors.push(`${q.id}: multi needs >=4 choices`);
+      else if (!Array.isArray(q.correctIndices) || !q.correctIndices.length
+        || q.correctIndices.some((i) => i < 0 || i >= q.choices.length)
+        || new Set(q.correctIndices).size !== q.correctIndices.length) errors.push(`${q.id}: bad correctIndices`);
     } else {
       if (!Array.isArray(q.choices) || q.choices.length < 2) errors.push(`${q.id}: bad choices`);
       else if (q.correctIndex == null || q.correctIndex < 0 || q.correctIndex >= q.choices.length) errors.push(`${q.id}: bad correctIndex`);
@@ -35,9 +40,19 @@ for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
   const exam = JSON.parse(fs.readFileSync(mainPath, 'utf8'));
   const existingIds = new Set(exam.questions.map((q) => q.id));
   const existingPassages = new Set((exam.passages || []).map((p) => p.id));
-  let added = 0, addedPassages = 0, skipped = 0;
+  let added = 0, addedPassages = 0, addedSections = 0, addedTasks = 0, skipped = 0;
   for (const file of extFiles) {
     const ext = JSON.parse(fs.readFileSync(path.join(examsDir, file), 'utf8'));
+    for (const s of ext.sections || []) {
+      if (exam.sections.some((x) => x.id === s.id)) { skipped++; continue; }
+      exam.sections.push(s);
+      addedSections++;
+    }
+    for (const w of ext.writingTasks || []) {
+      if ((exam.writingTasks || []).some((x) => x.id === w.id)) { skipped++; continue; }
+      (exam.writingTasks ||= []).push(w);
+      addedTasks++;
+    }
     for (const p of ext.passages || []) {
       if (existingPassages.has(p.id)) { skipped++; continue; }
       (exam.passages ||= []).push(p);
@@ -60,6 +75,6 @@ for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
   }
   fs.writeFileSync(mainPath, JSON.stringify(exam));
   for (const file of extFiles) fs.unlinkSync(path.join(examsDir, file));
-  console.log(`${examId}: +${added} questions, +${addedPassages} passages (skipped ${skipped}); total ${exam.questions.length}. Merged: ${extFiles.join(', ')}`);
+  console.log(`${examId}: +${added} questions, +${addedPassages} passages, +${addedSections} sections, +${addedTasks} writing tasks (skipped ${skipped}); total ${exam.questions.length}. Merged: ${extFiles.join(', ')}`);
 }
 console.log('done');

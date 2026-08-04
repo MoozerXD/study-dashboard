@@ -133,8 +133,8 @@
       return { scaled: Math.round(pct * 100), scaledLabel: `${correct}/${total} · ${Math.round(pct * 100)}%` };
     }
     if (type === "band") {
-      // Band conversion is defined for the Reading module; other sections report raw score.
-      if (!sectionRows.some((r) => r.sectionId === "reading")) {
+      // Band conversion is defined for Reading and Listening; other sections report raw score.
+      if (!sectionRows.some((r) => r.sectionId === "reading" || r.sectionId === "listening")) {
         return { scaled: Math.round(pct * 100), scaledLabel: `${correct}/${total} · ${Math.round(pct * 100)}%` };
       }
       let band = 2.5;
@@ -204,7 +204,20 @@
       if (!given) return false;
       return (question.answers || []).some((a) => normalizeInput(a) === given);
     }
+    if (question.type === "multi") {
+      if (!Array.isArray(answer) || !answer.length) return false;
+      const given = [...answer].map(Number).sort((a, b) => a - b);
+      const correct = [...(question.correctIndices || [])].map(Number).sort((a, b) => a - b);
+      return given.length === correct.length && given.every((v, i) => v === correct[i]);
+    }
     return Number(answer) === Number(question.correctIndex);
+  }
+
+  // "Is there an answer worth counting?" — handles strings, numbers and multi-select arrays
+  function hasAnswer(entry) {
+    if (!entry || entry.value == null || entry.value === "") return false;
+    if (Array.isArray(entry.value)) return entry.value.length > 0;
+    return true;
   }
 
   function formatDuration(totalSec) {
@@ -225,6 +238,99 @@
     return CATALOG.find((c) => c.id === examId)?.accent || "#5b8cff";
   }
 
+  /* ---------- listening: browser TTS "audio" playback ---------- */
+  const MAX_AUDIO_PLAYS = 2;
+  const tts = { active: false, passageId: null, chunkIndex: 0, chunks: [] };
+
+  function ttsSupported() { return "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined"; }
+
+  function scriptToChunks(script) {
+    // Strip "SPEAKER:" labels and split into short utterances (Chrome cuts off long ones)
+    const lines = String(script).split("\n").map((l) => l.trim()).filter(Boolean)
+      .map((l) => l.replace(/^[A-ZÀ-ß][\w .'-]{0,25}:\s*/u, ""));
+    const chunks = [];
+    for (const line of lines) {
+      const sentences = line.match(/[^.!?]+[.!?]+["']?|\S[^.!?]*$/g) || [line];
+      let buffer = "";
+      for (const sentence of sentences) {
+        if ((buffer + sentence).length > 180 && buffer) { chunks.push(buffer.trim()); buffer = sentence; }
+        else buffer += sentence;
+      }
+      if (buffer.trim()) chunks.push(buffer.trim());
+    }
+    return chunks;
+  }
+
+  function pickEnglishVoice() {
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.find((v) => /^en[-_](GB|US)/i.test(v.lang) && /female|natural|google/i.test(v.name))
+      || voices.find((v) => /^en[-_](GB|US)/i.test(v.lang))
+      || voices.find((v) => v.lang?.toLowerCase().startsWith("en"))
+      || null;
+  }
+
+  function stopAudio() {
+    tts.active = false;
+    tts.chunks = [];
+    if (ttsSupported()) window.speechSynthesis.cancel();
+    updateAudioUi();
+  }
+
+  function speakNextChunk() {
+    if (!tts.active || tts.chunkIndex >= tts.chunks.length) {
+      tts.active = false;
+      updateAudioUi();
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(tts.chunks[tts.chunkIndex]);
+    const voice = pickEnglishVoice();
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || "en-US";
+    utterance.rate = 0.95;
+    utterance.onend = () => { tts.chunkIndex += 1; speakNextChunk(); };
+    utterance.onerror = () => { tts.active = false; updateAudioUi(); };
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function playListening(passage) {
+    if (!ttsSupported() || !ex.runner) return;
+    const used = ex.runner.playsUsed?.[passage.id] || 0;
+    if (used >= MAX_AUDIO_PLAYS || tts.active) return;
+    ex.runner.playsUsed = ex.runner.playsUsed || {};
+    ex.runner.playsUsed[passage.id] = used + 1;
+    persistRunner();
+    window.speechSynthesis.cancel();
+    tts.active = true;
+    tts.passageId = passage.id;
+    tts.chunks = scriptToChunks(passage.script || passage.text || "");
+    tts.chunkIndex = 0;
+    // voices may load asynchronously on first use
+    if (!window.speechSynthesis.getVoices().length) {
+      window.speechSynthesis.addEventListener("voiceschanged", () => speakNextChunk(), { once: true });
+      setTimeout(() => { if (tts.active && tts.chunkIndex === 0 && !window.speechSynthesis.speaking) speakNextChunk(); }, 400);
+    } else {
+      speakNextChunk();
+    }
+    updateAudioUi();
+  }
+
+  function updateAudioUi() {
+    const status = document.getElementById("examAudioStatus");
+    const playBtn = document.querySelector("[data-action='exam-play-audio']");
+    const stopBtn = document.querySelector("[data-action='exam-stop-audio']");
+    if (!status && !playBtn) return;
+    const passageId = playBtn?.dataset.passage;
+    const used = ex.runner?.playsUsed?.[passageId] || 0;
+    const left = Math.max(0, MAX_AUDIO_PLAYS - used);
+    if (status) {
+      status.textContent = tts.active
+        ? `🔊 ${t("Идёт воспроизведение…", "Playing…")}`
+        : left > 0 ? `${t("Осталось прослушиваний", "Plays left")}: ${left}` : t("Прослушивания закончились", "No plays left");
+    }
+    if (playBtn) playBtn.disabled = tts.active || left <= 0;
+    if (stopBtn) stopBtn.disabled = !tts.active;
+  }
+
   /* ---------- interrupted-attempt persistence ---------- */
   function persistRunner() {
     const r = ex.runner;
@@ -242,6 +348,7 @@
         startedAt: r.startedAt,
         remainingSec: r.practice ? null : Math.max(0, Math.round((r.sectionDeadline - Date.now()) / 1000)),
         fullMock: r.fullMock,
+        playsUsed: r.playsUsed || {},
         savedAt: Date.now(),
       }));
     } catch {}
@@ -286,6 +393,7 @@
         finished: false,
         review: false,
         savedAttempt: null,
+        playsUsed: data.playsUsed || {},
         fullMock: !!data.fullMock,
       });
     } catch {
@@ -300,7 +408,7 @@
     if (!data || ex.runner) return "";
     const meta = CATALOG.find((c) => c.id === data.examId);
     const exam = ex.cache[data.examId];
-    const answered = (data.answers || []).filter(([, a]) => a && a.value != null && a.value !== "").length;
+    const answered = (data.answers || []).filter(([, a]) => hasAnswer(a)).length;
     const name = pick(exam?.title) || pick(meta?.name) || data.examId.toUpperCase();
     const kind = data.practice ? t("практика", "practice") : t("пробный тест", "mock test");
     return `
@@ -455,16 +563,40 @@
   }
 
   function renderMockTab(exam) {
-    const totalQuestions = exam.sections.reduce((sum, s) => sum + s.questionsPerAttempt, 0);
-    const totalMin = exam.sections.reduce((sum, s) => sum + s.durationMin, 0);
-    const sectionRows = exam.sections.map((s) => `
+    const questionSections = exam.sections.filter((s) => s.kind !== "writing");
+    const hasEntPairs = exam.examId === "ent" && exam.sections.some((s) => s.id === "biology");
+    const countedSections = hasEntPairs
+      ? exam.sections.filter((s) => [...ENT_MANDATORY, ...ENT_PROFILE_PAIRS.mathphys.ids].includes(s.id))
+      : questionSections;
+    const totalQuestions = countedSections.reduce((sum, s) => sum + s.questionsPerAttempt, 0);
+    const totalMin = countedSections.reduce((sum, s) => sum + s.durationMin, 0);
+    const entPairPicker = hasEntPairs ? `
+      <label class="exam-profile-pick">
+        <span>${t("Профильные предметы", "Profile subjects")}:</span>
+        <select id="examProfilePair">
+          ${Object.entries(ENT_PROFILE_PAIRS).map(([key, pair]) => `<option value="${key}">${esc(pick(pair.label))}</option>`).join("")}
+        </select>
+      </label>` : "";
+    const sectionRows = exam.sections.map((s) => {
+      if (s.kind === "writing") {
+        return `
+          <div class="exam-section-row exam-section-writing">
+            <div>
+              <strong>✍️ ${esc(pick(s.title))}</strong>
+              <small>${t("Проверка ИИ по критериям экзамена", "AI-graded against exam criteria")} · ${s.durationMin} ${t("мин", "min")}</small>
+            </div>
+            <button class="ghost-button" data-action="exam-writing-open" data-section="${s.id}" type="button">${t("Начать", "Start")}</button>
+          </div>`;
+      }
+      return `
       <div class="exam-section-row">
         <div>
           <strong>${esc(pick(s.title))}</strong>
           <small>${s.questionsPerAttempt} ${plural(s.questionsPerAttempt, QUESTIONS_FORMS)} · ${s.durationMin} ${t("мин", "min")}</small>
         </div>
         <button class="ghost-button" data-action="exam-start-section" data-section="${s.id}" type="button">${t("Начать", "Start")}</button>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     return `
       ${renderNextStep(exam)}
       <div class="exam-mock-layout">
@@ -472,10 +604,11 @@
           <h3>${t("Полный пробный тест", "Full mock test")}</h3>
           <p>${t("Все секции подряд с таймером, как на реальном экзамене.", "All sections in sequence with a timer, just like the real exam.")}</p>
           <div class="exam-full-mock-meta">
-            <span>${exam.sections.length} ${t("секций", "sections")}</span>
+            <span>${countedSections.length} ${t("секций", "sections")}</span>
             <span>${totalQuestions} ${plural(totalQuestions, QUESTIONS_FORMS)}</span>
             <span>${totalMin} ${t("минут", "minutes")}</span>
           </div>
+          ${entPairPicker}
           <button class="primary-button" data-action="exam-start-full" type="button">${t("Начать полный тест", "Start full test")}</button>
         </article>
         <article class="panel">
@@ -488,7 +621,7 @@
 
   function renderPracticeTab(exam) {
     const weak = weakTopics(exam.examId, 4);
-    const sectionCards = exam.sections.map((s) => {
+    const sectionCards = exam.sections.filter((s) => s.kind !== "writing").map((s) => {
       const total = sectionQuestions(exam, s.id).length;
       const lengths = PRACTICE_LENGTHS.filter((n) => n <= total);
       if (!lengths.length && total) lengths.push(total);
@@ -503,6 +636,22 @@
           </div>
         </div>`;
     }).join("");
+    const writingSections = exam.sections.filter((s) => s.kind === "writing");
+    const writingBlock = writingSections.length ? `
+      <article class="panel">
+        <h3>✍️ ${t("Письменная часть", "Writing")}</h3>
+        <p class="exam-muted">${t("Пиши эссе с таймером — ИИ-экзаменатор оценит по официальным критериям и покажет ошибки с цитатами.", "Write a timed essay — the AI examiner grades it against the official criteria and quotes your mistakes.")}</p>
+        <div class="exam-section-list">
+          ${writingSections.map((s) => `
+            <div class="exam-section-row exam-section-writing">
+              <div>
+                <strong>${esc(pick(s.title))}</strong>
+                <small>${(exam.writingTasks || []).filter((task) => task.sectionId === s.id).length} ${t("заданий", "tasks")} · ${s.durationMin} ${t("мин", "min")}</small>
+              </div>
+              <button class="ghost-button" data-action="exam-writing-open" data-section="${s.id}" type="button">${t("Писать", "Write")}</button>
+            </div>`).join("")}
+        </div>
+      </article>` : "";
     const weakBlock = weak.length ? `
       <article class="panel exam-weak-panel">
         <h3>${t("Слабые темы", "Weak topics")}</h3>
@@ -522,6 +671,7 @@
           <div class="exam-section-list">${sectionCards}</div>
         </article>
         ${weakBlock}
+        ${writingBlock}
       </div>`;
   }
 
@@ -672,8 +822,25 @@
       finished: false,
       review: false,
       savedAttempt: null,
-      fullMock: !practice && sectionIds.length === exam.sections.length,
+      playsUsed: {},
+      fullMock: options.fullMock ?? (!practice && sectionIds.length === exam.sections.filter((s) => s.kind !== "writing").length),
     };
+  }
+
+  // ЕНТ: обязательные предметы + выбранная профильная пара (как на реальном экзамене)
+  const ENT_MANDATORY = ["history_kz", "math_literacy", "reading_literacy"];
+  const ENT_PROFILE_PAIRS = {
+    mathphys: { ids: ["math_profile", "physics"], label: { ru: "Математика + Физика", en: "Math + Physics" } },
+    biochem: { ids: ["biology", "chemistry"], label: { ru: "Биология + Химия", en: "Biology + Chemistry" } },
+  };
+
+  function fullMockSectionIds(exam) {
+    if (exam.examId === "ent" && exam.sections.some((s) => s.id === "biology")) {
+      const pairKey = document.getElementById("examProfilePair")?.value || "mathphys";
+      const pair = ENT_PROFILE_PAIRS[pairKey] || ENT_PROFILE_PAIRS.mathphys;
+      return [...ENT_MANDATORY, ...pair.ids].filter((id) => exam.sections.some((s) => s.id === id));
+    }
+    return exam.sections.filter((s) => s.kind !== "writing").map((s) => s.id);
   }
 
   function startRunner(runner) {
@@ -714,6 +881,7 @@
   }
 
   function stopRunner() {
+    stopAudio();
     if (ex.runner?.timerId) clearInterval(ex.runner.timerId);
     ex.runner = null;
     document.body.classList.remove("exam-running");
@@ -749,6 +917,7 @@
   function finishSection(auto = false) {
     const runner = ex.runner;
     if (!runner) return;
+    stopAudio();
     if (runner.sectionIndex < runner.sections.length - 1) {
       runner.sectionIndex += 1;
       runner.questionIndex = 0;
@@ -858,6 +1027,8 @@
     const question = currentQuestion();
     const answer = answerFor(question.id);
     const passage = question.passageId ? (runner.exam.passages || []).find((p) => p.id === question.passageId) : null;
+    // Moving to a question from another recording must not leave the previous audio running
+    if (tts.active && tts.passageId && tts.passageId !== question.passageId) stopAudio();
     const index = runner.questionIndex;
     const count = section.questions.length;
     const left = runner.practice ? null : Math.max(0, Math.round((runner.sectionDeadline - Date.now()) / 1000));
@@ -866,19 +1037,35 @@
       const a = runner.answers.get(q.id);
       const cls = [
         i === index ? "current" : "",
-        a?.value != null && a.value !== "" ? "answered" : "",
+        hasAnswer(a) ? "answered" : "",
         a?.flagged ? "flagged" : "",
       ].filter(Boolean).join(" ");
       return `<button class="exam-dot ${cls}" data-action="exam-goto" data-index="${i}" type="button" aria-label="${t("Вопрос", "Question")} ${i + 1}">${i + 1}</button>`;
     }).join("");
 
-    const answeredCount = section.questions.filter((q) => {
-      const a = runner.answers.get(q.id);
-      return a && a.value != null && a.value !== "";
-    }).length;
+    const answeredCount = section.questions.filter((q) => hasAnswer(runner.answers.get(q.id))).length;
 
     let body;
-    if (question.type === "input") {
+    if (question.type === "multi") {
+      const picked = new Set(Array.isArray(answer.value) ? answer.value.map(Number) : []);
+      const correctSet = new Set((question.correctIndices || []).map(Number));
+      const showResult = runner.practice && answer.checked;
+      body = `
+        <p class="exam-multi-hint">${t("Можно выбрать несколько вариантов", "Multiple answers can be selected")}</p>
+        <div class="exam-choices">${question.choices.map((choice, i) => {
+          const isPicked = picked.has(i);
+          let cls = isPicked ? "picked" : "";
+          if (showResult) {
+            if (correctSet.has(i)) cls = "correct";
+            else if (isPicked) cls = "wrong";
+          }
+          return `<button class="exam-choice ${cls}" data-action="exam-multi-toggle" data-index="${i}" type="button" ${showResult ? "disabled" : ""}>
+            <span class="exam-choice-letter ${isPicked || (showResult && correctSet.has(i)) ? "checked" : ""}">${isPicked ? "✓" : String.fromCharCode(65 + i)}</span>
+            <span>${esc(choice)}</span>
+          </button>`;
+        }).join("")}</div>
+        ${runner.practice && !answer.checked ? `<button class="primary-button exam-check-btn" data-action="exam-check" type="button">${t("Проверить", "Check")}</button>` : ""}`;
+    } else if (question.type === "input") {
       const checked = runner.practice && answer.checked;
       body = `
         <input class="exam-input" id="examInputAnswer" type="text" autocomplete="off"
@@ -904,6 +1091,7 @@
       <div class="exam-feedback ${isCorrect(question, answer.value) ? "ok" : "bad"}">
         <strong>${isCorrect(question, answer.value) ? t("Верно! 🎉", "Correct! 🎉") : t("Неверно", "Incorrect")}</strong>
         ${question.type === "input" && !isCorrect(question, answer.value) ? `<p>${t("Правильный ответ", "Correct answer")}: <strong>${esc((question.answers || [])[0] || "")}</strong></p>` : ""}
+        ${question.type === "multi" && !isCorrect(question, answer.value) ? `<p>${t("Правильная комбинация", "Correct combination")}: <strong>${esc((question.correctIndices || []).map((i) => String.fromCharCode(65 + i)).join(", "))}</strong></p>` : ""}
         ${question.explanation ? `<p>${esc(question.explanation)}</p>` : ""}
       </div>` : "";
 
@@ -924,7 +1112,7 @@
         </header>
         <div class="exam-progressbar"><span style="width:${((index + 1) / count) * 100}%"></span></div>
         <div class="exam-runner-body ${passage ? "with-passage" : ""}">
-          ${passage ? `<aside class="exam-passage"><h4>${esc(passage.title || "")}</h4><div>${esc(passage.text).replace(/\n/g, "<br>")}</div></aside>` : ""}
+          ${passage ? (passage.kind === "listening" ? renderListeningPanel(passage) : `<aside class="exam-passage"><h4>${esc(passage.title || "")}</h4><div>${esc(passage.text).replace(/\n/g, "<br>")}</div></aside>`) : ""}
           <div class="exam-question-panel">
             <div class="exam-question-meta">
               <span>${t("Вопрос", "Question")} ${index + 1} ${t("из", "of")} ${count}</span>
@@ -959,6 +1147,30 @@
       });
       if (!(runner.practice && answer.checked)) input.focus();
     }
+  }
+
+  function renderListeningPanel(passage) {
+    const used = ex.runner?.playsUsed?.[passage.id] || 0;
+    const left = Math.max(0, MAX_AUDIO_PLAYS - used);
+    if (!ttsSupported()) {
+      // no speech synthesis in this browser — degrade to reading the transcript
+      return `
+        <aside class="exam-passage exam-listening">
+          <h4>🎧 ${esc(passage.title || "")}</h4>
+          <p class="exam-listening-note">${t("Браузер не поддерживает озвучку — читай скрипт как текст.", "This browser has no speech synthesis — read the transcript instead.")}</p>
+          <div>${esc(passage.script || "").replace(/\n/g, "<br>")}</div>
+        </aside>`;
+    }
+    return `
+      <aside class="exam-passage exam-listening">
+        <h4>🎧 ${esc(passage.title || "")}</h4>
+        <p class="exam-listening-note">${t("Как на экзамене: запись можно включить не больше 2 раз. Отвечай на вопросы по ходу прослушивания.", "Exam rules: you can play the recording at most twice. Answer the questions as you listen.")}</p>
+        <div class="exam-listening-controls">
+          <button class="primary-button" data-action="exam-play-audio" data-passage="${esc(passage.id)}" type="button" ${tts.active || left <= 0 ? "disabled" : ""}>▶ ${t("Слушать", "Play")}</button>
+          <button class="ghost-button" data-action="exam-stop-audio" type="button" ${tts.active ? "" : "disabled"}>⏹ ${t("Стоп", "Stop")}</button>
+        </div>
+        <div class="exam-audio-status" id="examAudioStatus">${tts.active ? `🔊 ${t("Идёт воспроизведение…", "Playing…")}` : `${t("Осталось прослушиваний", "Plays left")}: ${left}`}</div>
+      </aside>`;
   }
 
   function renderResultScreen(runner) {
@@ -1011,10 +1223,14 @@
       const items = s.questions.map((q, i) => {
         const a = runner.answers.get(q.id);
         const ok = isCorrect(q, a?.value);
+        const letterList = (indices) => (indices || []).map((i) => `${String.fromCharCode(65 + Number(i))}. ${q.choices[i]}`).join("; ");
         let givenLabel;
         if (q.type === "input") givenLabel = a?.value ? String(a.value) : t("нет ответа", "no answer");
+        else if (q.type === "multi") givenLabel = hasAnswer(a) ? letterList(a.value) : t("нет ответа", "no answer");
         else givenLabel = a?.value != null ? `${String.fromCharCode(65 + Number(a.value))}. ${q.choices[a.value]}` : t("нет ответа", "no answer");
-        const correctLabel = q.type === "input" ? (q.answers || [])[0] : `${String.fromCharCode(65 + q.correctIndex)}. ${q.choices[q.correctIndex]}`;
+        const correctLabel = q.type === "input" ? (q.answers || [])[0]
+          : q.type === "multi" ? letterList(q.correctIndices)
+          : `${String.fromCharCode(65 + q.correctIndex)}. ${q.choices[q.correctIndex]}`;
         return `
           <details class="exam-review-item ${ok ? "ok" : "bad"}">
             <summary><span class="exam-review-mark">${ok ? "✓" : "✕"}</span><span class="exam-review-q">${i + 1}. ${esc(q.text.slice(0, 140))}${q.text.length > 140 ? "…" : ""}</span></summary>
@@ -1026,7 +1242,15 @@
             </div>
           </details>`;
       }).join("");
-      return `<section class="exam-review-section"><h4>${esc(pick(s.meta.title))}</h4>${items}</section>`;
+      const listeningScripts = [...new Set(s.questions.map((q) => q.passageId).filter(Boolean))]
+        .map((id) => (runner.exam.passages || []).find((p) => p.id === id))
+        .filter((p) => p && p.kind === "listening");
+      const scriptsBlock = listeningScripts.map((p) => `
+        <details class="exam-review-item">
+          <summary><span class="exam-review-mark">🎧</span><span class="exam-review-q">${t("Скрипт записи", "Audio transcript")}: ${esc(p.title || "")}</span></summary>
+          <div class="exam-review-detail"><p class="exam-review-full">${esc(p.script || "").replace(/\n/g, "<br>")}</p></div>
+        </details>`).join("");
+      return `<section class="exam-review-section"><h4>${esc(pick(s.meta.title))}</h4>${scriptsBlock}${items}</section>`;
     }).join("");
     return `
       <div class="exam-runner exam-review-screen">
@@ -1042,11 +1266,231 @@
       </div>`;
   }
 
+  /* ---------- writing: AI-graded essays ---------- */
+  function writingDraftKey(taskId) { return `studyExamEssay:${taskId}`; }
+  function countWords(text) { return String(text || "").trim().split(/\s+/).filter(Boolean).length; }
+
+  function openWriting(exam, sectionId) {
+    const tasks = (exam.writingTasks || []).filter((task) => task.sectionId === sectionId);
+    if (!tasks.length) { toast(t("Задания ещё не загружены", "Tasks are not available yet")); return; }
+    ex.writing = { exam, sectionId, tasks, task: null, phase: "pick", text: "", deadline: null, timerId: null, feedback: null, score: null, startedAt: null };
+    document.body.classList.add("exam-running");
+    renderWriting();
+  }
+
+  function startWritingTask(taskId) {
+    const w = ex.writing;
+    const task = w.tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    w.task = task;
+    w.phase = "write";
+    w.text = localStorage.getItem(writingDraftKey(task.id)) || "";
+    w.startedAt = Date.now();
+    w.deadline = Date.now() + (task.durationMin || 40) * 60 * 1000;
+    if (w.timerId) clearInterval(w.timerId);
+    w.timerId = setInterval(() => {
+      const label = document.getElementById("examWritingTimer");
+      if (!label || !ex.writing || ex.writing.phase !== "write") return;
+      const left = Math.round((ex.writing.deadline - Date.now()) / 1000);
+      if (left <= 0) {
+        label.textContent = "00:00";
+        label.classList.add("danger");
+        clearInterval(ex.writing.timerId);
+        toast(t("Время вышло — можешь дописать и отправить", "Time is up — you can still finish and submit"));
+      } else {
+        label.textContent = timerText(left);
+        label.classList.toggle("danger", left <= 120);
+      }
+    }, 1000);
+    renderWriting();
+  }
+
+  function closeWriting(force = false) {
+    const w = ex.writing;
+    if (!w) return;
+    const doClose = () => {
+      if (w.timerId) clearInterval(w.timerId);
+      ex.writing = null;
+      document.body.classList.remove("exam-running");
+      document.getElementById("examRunnerOverlay")?.remove();
+      render();
+    };
+    if (!force && w.phase === "write" && countWords(w.text) > 10) {
+      // draft is already autosaved — leaving is safe, just tell the user
+      toast(t("Черновик сохранён — вернёшься, и текст будет на месте", "Draft saved — your text will be here when you return"));
+    }
+    doClose();
+  }
+
+  async function submitWriting() {
+    const w = ex.writing;
+    if (!w || !w.task) return;
+    const words = countWords(w.text);
+    if (words < 40) { toast(t("Слишком короткий текст для проверки (минимум ~40 слов)", "Too short to grade (about 40 words minimum)")); return; }
+    if (words < (w.task.minWords || 0)) {
+      const sure = typeof confirmAction === "function"
+        ? await confirmAction({
+            title: t("Отправить короткую работу?", "Submit a short answer?"),
+            text: `${t("Слов", "Words")}: ${words} ${t("из требуемых", "of required")} ${w.task.minWords}. ${t("За недобор слов экзаменатор снижает балл.", "Examiners deduct points for being under the word limit.")}`,
+            okText: t("Отправить", "Submit"),
+          })
+        : true;
+      if (!sure) return;
+    }
+    w.phase = "checking";
+    renderWriting();
+    try {
+      const examLang = w.exam.lang === "en" ? "en" : "ru";
+      const result = await api("/api/exam-writing-check", {
+        method: "POST",
+        body: {
+          examId: w.exam.examId,
+          taskTitle: pick(w.task.title),
+          taskPrompt: (w.task.prompt && (w.task.prompt[examLang] || pick(w.task.prompt))) || "",
+          criteria: w.task.criteria || "",
+          maxScore: w.task.maxScore || 9,
+          essay: w.text,
+          language: lang(),
+        },
+      });
+      w.feedback = result.feedback || "";
+      w.score = result.score;
+      w.phase = "feedback";
+      localStorage.removeItem(writingDraftKey(w.task.id));
+      renderWriting();
+      if (w.score != null) {
+        const scaledLabel = w.exam.examId === "ielts" ? `Band ${w.score} (Writing)` : `${w.score}/${result.max} · ${t("сочинение", "essay")}`;
+        try {
+          await api("/api/exam-attempts", {
+            method: "POST",
+            body: {
+              examId: w.exam.examId,
+              mode: "section",
+              sections: [{ sectionId: w.sectionId, correct: w.score, total: result.max }],
+              topics: [],
+              score: { correct: w.score, total: result.max, scaled: w.score, scaledLabel },
+              durationSec: Math.round((Date.now() - w.startedAt) / 1000),
+            },
+          });
+          await loadAttempts(true);
+        } catch {}
+      }
+    } catch (error) {
+      w.phase = "write";
+      renderWriting();
+      toast(error?.message || t("Не удалось проверить работу", "Could not check the work"));
+    }
+  }
+
+  function renderWriting() {
+    const w = ex.writing;
+    if (!w) return;
+    const overlay = ensureOverlay();
+    const examTitle = esc(pick(w.exam.title));
+    const sectionTitle = esc(pick(w.exam.sections.find((s) => s.id === w.sectionId)?.title) || "");
+
+    if (w.phase === "pick") {
+      overlay.innerHTML = `
+        <div class="exam-runner exam-writing-screen">
+          <header class="exam-runner-head">
+            <div class="exam-runner-title"><strong>${examTitle}</strong><span>${sectionTitle}</span></div>
+            <button class="icon-button" data-action="exam-writing-close" type="button" aria-label="${t("Закрыть", "Close")}"><svg><use href="#i-x"></use></svg></button>
+          </header>
+          <p class="exam-muted">${t("Выбери задание. Работу проверит ИИ по официальным критериям и объяснит, за что снижены баллы.", "Pick a task. The AI grades your work against the official criteria and explains every deduction.")}</p>
+          <div class="exam-writing-tasks">
+            ${w.tasks.map((task) => `
+              <button class="exam-writing-task" data-action="exam-writing-start" data-task="${esc(task.id)}" type="button">
+                <strong>${esc(pick(task.title))}</strong>
+                <small>${t("минимум", "min")} ${task.minWords} ${t("слов", "words")} · ${task.durationMin} ${t("мин", "min")} · ${t("макс. балл", "max score")}: ${task.maxScore}</small>
+              </button>`).join("")}
+          </div>
+        </div>`;
+      overlay.scrollTop = 0;
+      return;
+    }
+
+    if (w.phase === "write") {
+      const words = countWords(w.text);
+      const left = Math.max(0, Math.round((w.deadline - Date.now()) / 1000));
+      overlay.innerHTML = `
+        <div class="exam-runner exam-writing-screen">
+          <header class="exam-runner-head">
+            <div class="exam-runner-title"><strong>${examTitle}</strong><span>${esc(pick(w.task.title))}</span></div>
+            <span class="exam-timer" id="examWritingTimer">${timerText(left)}</span>
+            <button class="icon-button" data-action="exam-writing-close" type="button" aria-label="${t("Закрыть", "Close")}"><svg><use href="#i-x"></use></svg></button>
+          </header>
+          <div class="exam-writing-layout">
+            <div class="exam-writing-prompt md-body">${renderMarkdown((w.task.prompt && (w.task.prompt[lang()] || pick(w.task.prompt))) || "")}</div>
+            <div class="exam-writing-editor">
+              <textarea id="examWritingText" placeholder="${t("Пиши здесь…", "Write here…")}" spellcheck="true">${esc(w.text)}</textarea>
+              <div class="exam-writing-bar">
+                <span id="examWritingWords" class="${words >= w.task.minWords ? "ok" : ""}">${words} / ${w.task.minWords} ${t("слов", "words")}</span>
+                <span class="exam-writing-autosave">${t("Черновик сохраняется автоматически", "Draft is saved automatically")}</span>
+                <button class="primary-button" data-action="exam-writing-submit" type="button">${t("Отправить на проверку ИИ", "Submit for AI review")}</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      const textarea = document.getElementById("examWritingText");
+      textarea.addEventListener("input", () => {
+        w.text = textarea.value;
+        localStorage.setItem(writingDraftKey(w.task.id), w.text);
+        const counter = document.getElementById("examWritingWords");
+        const count = countWords(w.text);
+        if (counter) {
+          counter.textContent = `${count} / ${w.task.minWords} ${t("слов", "words")}`;
+          counter.classList.toggle("ok", count >= w.task.minWords);
+        }
+      });
+      textarea.focus();
+      return;
+    }
+
+    if (w.phase === "checking") {
+      overlay.innerHTML = `
+        <div class="exam-runner exam-writing-screen">
+          <header class="exam-runner-head">
+            <div class="exam-runner-title"><strong>${examTitle}</strong><span>${esc(pick(w.task.title))}</span></div>
+          </header>
+          <div class="exam-writing-checking">
+            <div class="exam-spinner" aria-hidden="true"></div>
+            <p>${t("ИИ-экзаменатор проверяет работу по критериям… обычно это занимает 20–40 секунд.", "The AI examiner is grading your work… this usually takes 20–40 seconds.")}</p>
+          </div>
+        </div>`;
+      return;
+    }
+
+    // feedback
+    const scoreLabel = w.score == null
+      ? t("Балл не распознан", "Score not detected")
+      : (w.exam.examId === "ielts" ? `Band ${w.score}` : `${w.score} / ${w.task.maxScore}`);
+    overlay.innerHTML = `
+      <div class="exam-runner exam-writing-screen">
+        <header class="exam-runner-head">
+          <div class="exam-runner-title"><strong>${examTitle}</strong><span>${t("Результат проверки", "Review result")}</span></div>
+          <button class="icon-button" data-action="exam-writing-close" type="button" aria-label="${t("Закрыть", "Close")}"><svg><use href="#i-x"></use></svg></button>
+        </header>
+        <div class="exam-result-hero" style="--exam-accent:${accentFor(w.exam.examId)}">
+          <div class="exam-result-score">
+            <strong>${esc(scoreLabel)}</strong>
+            <span>${esc(pick(w.task.title))}</span>
+            <small>${countWords(w.text)} ${t("слов", "words")}</small>
+          </div>
+        </div>
+        <div class="exam-writing-feedback md-body">${renderMarkdown(w.feedback)}</div>
+        <div class="exam-result-actions">
+          <button class="ghost-button" data-action="exam-writing-retry" type="button">${t("Написать ещё", "Write another")}</button>
+          <button class="primary-button" data-action="exam-writing-close" type="button">${t("Готово", "Done")}</button>
+        </div>
+      </div>`;
+    overlay.scrollTop = 0;
+  }
+
   /* ---------- runner interactions ---------- */
   function checkPracticeAnswer() {
     const question = currentQuestion();
     const answer = answerFor(question.id);
-    if (answer.value == null || answer.value === "") { toast(t("Сначала выбери ответ", "Pick an answer first")); return; }
+    if (!hasAnswer(answer)) { toast(t("Сначала выбери ответ", "Pick an answer first")); return; }
     answer.checked = true;
     renderRunner();
   }
@@ -1140,7 +1584,7 @@
 
     const exam = ex.activeExamId ? ex.cache[ex.activeExamId] : null;
     if (action === "exam-start-full" && exam) {
-      startRunner(buildRunner(exam, exam.sections.map((s) => s.id)));
+      startRunner(buildRunner(exam, fullMockSectionIds(exam), { fullMock: true }));
       return;
     }
     if (action === "exam-start-section" && exam) {
@@ -1169,6 +1613,15 @@
       return;
     }
 
+    // writing actions
+    if (action === "exam-writing-open" && exam) { openWriting(exam, target.dataset.section); return; }
+    if (ex.writing) {
+      if (action === "exam-writing-start") { startWritingTask(target.dataset.task); return; }
+      if (action === "exam-writing-submit") { submitWriting(); return; }
+      if (action === "exam-writing-retry") { ex.writing.phase = "pick"; ex.writing.task = null; ex.writing.text = ""; renderWriting(); return; }
+      if (action === "exam-writing-close") { closeWriting(); return; }
+    }
+
     // runner actions
     if (!ex.runner) return;
     if (action === "exam-exit") { exitRunner(); return; }
@@ -1179,6 +1632,23 @@
       answer.value = Number(target.dataset.index);
       if (ex.runner.practice) { answer.checked = true; renderRunner(); }
       else renderRunner();
+      return;
+    }
+    if (action === "exam-play-audio") {
+      const passage = (ex.runner.exam.passages || []).find((p) => p.id === target.dataset.passage);
+      if (passage) playListening(passage);
+      return;
+    }
+    if (action === "exam-stop-audio") { stopAudio(); return; }
+    if (action === "exam-multi-toggle") {
+      const question = currentQuestion();
+      const answer = answerFor(question.id);
+      if (ex.runner.practice && answer.checked) return;
+      const picked = new Set(Array.isArray(answer.value) ? answer.value.map(Number) : []);
+      const idx = Number(target.dataset.index);
+      if (picked.has(idx)) picked.delete(idx); else picked.add(idx);
+      answer.value = [...picked].sort((a, b) => a - b);
+      renderRunner();
       return;
     }
     if (action === "exam-check") { checkPracticeAnswer(); return; }
@@ -1193,10 +1663,7 @@
     if (action === "exam-goto") { goToQuestion(Number(target.dataset.index)); return; }
     if (action === "exam-finish-section") {
       const questions = currentSection().questions;
-      const unanswered = questions.filter((q) => {
-        const a = ex.runner.answers.get(q.id);
-        return a?.value == null || a.value === "";
-      }).length;
+      const unanswered = questions.filter((q) => !hasAnswer(ex.runner.answers.get(q.id))).length;
       const flagged = questions.filter((q) => ex.runner.answers.get(q.id)?.flagged).length;
       if (unanswered > 0 || flagged > 0) {
         const parts = [];
@@ -1240,6 +1707,13 @@
 
   // keyboard shortcuts inside the runner
   document.addEventListener("keydown", (event) => {
+    if (ex.writing) {
+      if (event.key === "Escape" && ex.writing.phase !== "checking") {
+        event.stopImmediatePropagation();
+        closeWriting();
+      }
+      return;
+    }
     if (!ex.runner) return;
     if (event.key === "Escape" && !ex.runner.finished) {
       // app.js also listens for Escape to close the confirm modal we are about to open
@@ -1256,8 +1730,14 @@
       if (i < question.choices.length) {
         const answer = answerFor(question.id);
         if (!(ex.runner.practice && answer.checked)) {
-          answer.value = i;
-          if (ex.runner.practice) answer.checked = true;
+          if (question.type === "multi") {
+            const picked = new Set(Array.isArray(answer.value) ? answer.value.map(Number) : []);
+            if (picked.has(i)) picked.delete(i); else picked.add(i);
+            answer.value = [...picked].sort((a, b) => a - b);
+          } else {
+            answer.value = i;
+            if (ex.runner.practice) answer.checked = true;
+          }
           renderRunner();
         }
       }
@@ -1290,6 +1770,7 @@
       if (route && !route.classList.contains("hidden")) render();
       renderDashboardWidget();
       if (ex.runner) renderRunner();
+      if (ex.writing) renderWriting();
     },
     invalidateAttempts() { ex.attemptsLoaded = false; },
     // used by dashboard widget

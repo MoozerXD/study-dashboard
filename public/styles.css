@@ -3191,3 +3191,103 @@ body.exam-running{overflow:hidden}
   background:var(--card);
 }
 .exam-result-notes p{margin:0;font-size:13.5px;line-height:1.55;color:var(--text)}
+
+/* -------- multi-select, listening, writing -------- */
+.exam-multi-hint{margin:0;color:var(--muted);font-size:12.5px}
+.exam-choice-letter.checked{background:var(--blue);border-color:var(--blue);color:#fff}
+.exam-choice.correct .exam-choice-letter.checked{background:var(--green);border-color:var(--green);color:#04140d}
+
+.exam-listening .exam-listening-note{color:var(--muted);font-size:13px;margin:6px 0 12px}
+.exam-listening-controls{display:flex;gap:8px;margin-bottom:10px}
+.exam-audio-status{color:var(--muted);font-size:13px;font-weight:600}
+.exam-section-writing{border-left:3px solid var(--purple)}
+
+.exam-writing-screen{padding-bottom:24px}
+.exam-writing-tasks{display:grid;gap:10px;margin-top:14px}
+.exam-writing-task{
+  text-align:left;
+  display:grid;
+  gap:4px;
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  color:var(--text);
+  cursor:pointer;
+  transition:border-color .15s ease,background .15s ease;
+}
+.exam-writing-task:hover{border-color:var(--line-strong);background:var(--card-2)}
+.exam-writing-task small{color:var(--muted)}
+.exam-writing-layout{
+  display:grid;
+  grid-template-columns:minmax(0,5fr) minmax(0,6fr);
+  gap:16px;
+  align-items:start;
+  flex:1;
+}
+.exam-writing-prompt{
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  max-height:70vh;
+  overflow-y:auto;
+  position:sticky;
+  top:0;
+}
+.exam-writing-editor{display:grid;gap:10px}
+.exam-writing-editor textarea{
+  width:100%;
+  min-height:46vh;
+  resize:vertical;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  color:var(--text);
+  font-size:15px;
+  line-height:1.65;
+  font-family:inherit;
+}
+.exam-writing-editor textarea:focus{outline:none;box-shadow:var(--ring)}
+.exam-writing-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#examWritingWords{font-weight:700;color:var(--red)}
+#examWritingWords.ok{color:var(--green)}
+.exam-writing-autosave{color:var(--muted-2);font-size:12px;flex:1}
+.exam-writing-checking{
+  display:grid;
+  gap:16px;
+  justify-items:center;
+  padding:80px 20px;
+  color:var(--muted);
+  text-align:center;
+}
+.exam-spinner{
+  width:44px;height:44px;
+  border-radius:50%;
+  border:4px solid var(--card-3);
+  border-top-color:var(--blue);
+  animation:exam-spin 0.9s linear infinite;
+}
+@keyframes exam-spin{to{transform:rotate(360deg)}}
+.exam-writing-feedback{
+  padding:18px 20px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  margin:16px 0;
+}
+@media (max-width:900px){
+  .exam-writing-layout{grid-template-columns:1fr}
+  .exam-writing-prompt{position:static;max-height:34vh}
+}
+
+.exam-profile-pick{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted)}
+.exam-profile-pick select{
+  padding:8px 12px;
+  border:1px solid var(--line);
+  border-radius:var(--radius-sm);
+  background:var(--card);
+  color:var(--text);
+  font-size:13.5px;
+}

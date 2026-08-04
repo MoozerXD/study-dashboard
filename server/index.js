@@ -1918,6 +1918,56 @@ app.post("/api/exam-attempts", authMiddleware, safe(async (req, res) => {
   res.status(201).json(attempt);
 }));
 
+app.post("/api/exam-writing-check", authMiddleware, safe(async (req, res) => {
+  const body = req.body || {};
+  const examId = String(body.examId || "").trim();
+  if (!EXAM_IDS.includes(examId)) return res.status(400).json({ error: "Unknown examId" });
+  const essay = String(body.essay || "").trim();
+  if (essay.length < 120) return res.status(400).json({ error: "Essay is too short to grade" });
+  if (essay.length > 20000) return res.status(400).json({ error: "Essay is too long" });
+  const taskTitle = String(body.taskTitle || "").slice(0, 300);
+  const taskPrompt = String(body.taskPrompt || "").slice(0, 6000);
+  const criteria = String(body.criteria || "").slice(0, 1500);
+  const maxScore = clamp(body.maxScore, 1, 100);
+  const language = normalizeLanguage(body.language);
+
+  const gradingPrompt = [
+    language === "en"
+      ? `You are a strict, experienced exam examiner. Grade the student's written work for the ${examId.toUpperCase()} exam.`
+      : `Ты — строгий опытный экзаменатор. Оцени письменную работу ученика для экзамена ${examId.toUpperCase()}.`,
+    "",
+    `TASK: ${taskTitle}`,
+    taskPrompt ? `TASK TEXT:\n${taskPrompt}` : "",
+    `GRADING CRITERIA: ${criteria}`,
+    `MAXIMUM SCORE: ${maxScore}${examId === "ielts" ? " (IELTS band, 0-9, halves allowed)" : ""}`,
+    "",
+    "STUDENT'S WORK:",
+    "---",
+    essay,
+    "---",
+    "",
+    language === "en"
+      ? `Respond in English. THE VERY FIRST LINE must be exactly "SCORE: X" where X is the final score (max ${maxScore}). Then give: (1) a per-criterion breakdown with short justification, (2) 3-5 concrete mistakes with quotes from the work and corrections, (3) 2-3 specific pieces of advice to raise the score. Be honest and specific; do not inflate the score. If the work ignores the task or is copied from the task text, score it near zero.`
+      : `Отвечай по-русски. САМАЯ ПЕРВАЯ СТРОКА — строго "SCORE: X", где X — итоговый балл (максимум ${maxScore}${examId === "ielts" ? ", допускаются половинки band" : ""}). Затем дай: (1) разбор по каждому критерию с коротким обоснованием, (2) 3-5 конкретных ошибок с цитатами из работы и исправлениями, (3) 2-3 конкретных совета, как поднять балл. Оценивай честно и строго, не завышай. Если работа не по заданию или скопирована из текста задания — ставь балл около нуля.`,
+  ].filter(Boolean).join("\n");
+
+  const aiResult = await generateAiResponse(gradingPrompt, { language }, [], []);
+  if (aiResult.mode !== "live") {
+    return res.status(503).json({ error: language === "en"
+      ? "AI provider is not configured — writing check is unavailable."
+      : "ИИ-провайдер не настроен — проверка письменных работ недоступна." });
+  }
+  const text = String(aiResult.text || "");
+  const scoreMatch = text.match(/SCORE:\s*([0-9]+(?:[.,][0-9]+)?)/i);
+  const score = scoreMatch ? Math.min(maxScore, Number(scoreMatch[1].replace(",", "."))) : null;
+  res.json({
+    feedback: text.replace(/^\s*SCORE:.*$/im, "").trim(),
+    score,
+    max: maxScore,
+    aiSource: aiResult.source,
+  });
+}));
+
 app.delete("/api/exam-attempts/:id", authMiddleware, safe(async (req, res) => {
   const store = loadStore();
   const idx = store.examAttempts.findIndex((x) => x.id === req.params.id && x.userId === req.userId);
