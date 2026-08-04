@@ -11,6 +11,13 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@prisma/client";
+import {
+  renderLanding,
+  renderExamPage,
+  renderRobots,
+  renderSitemap,
+  EXAM_IDS as SEO_EXAM_IDS,
+} from "./seo.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -452,11 +459,35 @@ app.get("/auth.html", (req, res) => {
   res.redirect(302, "/login");
 });
 
-app.use(express.static(publicDir));
+// index:false — otherwise the static middleware answers "/" with the app shell
+// before the public landing route below ever runs.
+app.use(express.static(publicDir, { index: false }));
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(publicDir, "auth.html"));
+// --- public, server-rendered pages (indexable without an account) ---
+
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain").send(renderRobots(getPublicAppUrl(req)));
 });
+
+app.get("/sitemap.xml", (req, res) => {
+  res.type("application/xml").send(renderSitemap(getPublicAppUrl(req)));
+});
+
+for (const [routePath, lang] of [["/", "ru"], ["/en", "en"]]) {
+  app.get(routePath, (req, res) => {
+    res.type("html").send(renderLanding(lang, getPublicAppUrl(req)));
+  });
+}
+
+for (const examId of SEO_EXAM_IDS) {
+  for (const [prefix, lang] of [["", "ru"], ["/en", "en"]]) {
+    app.get(`${prefix}/${examId}`, (req, res, next) => {
+      const html = renderExamPage(examId, lang, getPublicAppUrl(req));
+      if (!html) return next();
+      res.type("html").send(html);
+    });
+  }
+}
 
 app.get(authRoutes, (req, res) => {
   res.sendFile(path.join(publicDir, "auth.html"));
