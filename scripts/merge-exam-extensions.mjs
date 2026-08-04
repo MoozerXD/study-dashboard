@@ -48,10 +48,12 @@ for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
       exam.sections.push(s);
       addedSections++;
     }
-    for (const w of ext.writingTasks || []) {
-      if ((exam.writingTasks || []).some((x) => x.id === w.id)) { skipped++; continue; }
-      (exam.writingTasks ||= []).push(w);
-      addedTasks++;
+    for (const key of ['writingTasks', 'speakingTasks']) {
+      for (const w of ext[key] || []) {
+        if ((exam[key] || []).some((x) => x.id === w.id)) { skipped++; continue; }
+        (exam[key] ||= []).push(w);
+        addedTasks++;
+      }
     }
     for (const p of ext.passages || []) {
       if (existingPassages.has(p.id)) { skipped++; continue; }

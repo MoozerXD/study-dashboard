@@ -578,12 +578,13 @@
         </select>
       </label>` : "";
     const sectionRows = exam.sections.map((s) => {
-      if (s.kind === "writing") {
+      if (s.kind === "writing" || s.kind === "speaking") {
+        const speaking = s.kind === "speaking";
         return `
           <div class="exam-section-row exam-section-writing">
             <div>
-              <strong>✍️ ${esc(pick(s.title))}</strong>
-              <small>${t("Проверка ИИ по критериям экзамена", "AI-graded against exam criteria")} · ${s.durationMin} ${t("мин", "min")}</small>
+              <strong>${speaking ? "🎙" : "✍️"} ${esc(pick(s.title))}</strong>
+              <small>${speaking ? t("Говори вслух — ИИ оценит по критериям", "Speak out loud — AI grades against the criteria") : t("Проверка ИИ по критериям экзамена", "AI-graded against exam criteria")} · ${s.durationMin} ${t("мин", "min")}</small>
             </div>
             <button class="ghost-button" data-action="exam-writing-open" data-section="${s.id}" type="button">${t("Начать", "Start")}</button>
           </div>`;
@@ -636,20 +637,24 @@
           </div>
         </div>`;
     }).join("");
-    const writingSections = exam.sections.filter((s) => s.kind === "writing");
-    const writingBlock = writingSections.length ? `
+    const openSections = exam.sections.filter((s) => s.kind === "writing" || s.kind === "speaking");
+    const writingBlock = openSections.length ? `
       <article class="panel">
-        <h3>✍️ ${t("Письменная часть", "Writing")}</h3>
-        <p class="exam-muted">${t("Пиши эссе с таймером — ИИ-экзаменатор оценит по официальным критериям и покажет ошибки с цитатами.", "Write a timed essay — the AI examiner grades it against the official criteria and quotes your mistakes.")}</p>
+        <h3>${t("Устная и письменная части", "Speaking & Writing")}</h3>
+        <p class="exam-muted">${t("Отвечай голосом или письменно — ИИ-экзаменатор оценит по официальным критериям и покажет ошибки с цитатами.", "Answer by speaking or in writing — the AI examiner grades against the official criteria and quotes your mistakes.")}</p>
         <div class="exam-section-list">
-          ${writingSections.map((s) => `
+          ${openSections.map((s) => {
+            const speaking = s.kind === "speaking";
+            const count = ((speaking ? exam.speakingTasks : exam.writingTasks) || []).filter((task) => task.sectionId === s.id).length;
+            return `
             <div class="exam-section-row exam-section-writing">
               <div>
-                <strong>${esc(pick(s.title))}</strong>
-                <small>${(exam.writingTasks || []).filter((task) => task.sectionId === s.id).length} ${t("заданий", "tasks")} · ${s.durationMin} ${t("мин", "min")}</small>
+                <strong>${speaking ? "🎙" : "✍️"} ${esc(pick(s.title))}</strong>
+                <small>${count} ${t("заданий", "tasks")} · ${s.durationMin} ${t("мин", "min")}</small>
               </div>
-              <button class="ghost-button" data-action="exam-writing-open" data-section="${s.id}" type="button">${t("Писать", "Write")}</button>
-            </div>`).join("")}
+              <button class="ghost-button" data-action="exam-writing-open" data-section="${s.id}" type="button">${speaking ? t("Говорить", "Speak") : t("Писать", "Write")}</button>
+            </div>`;
+          }).join("")}
         </div>
       </article>` : "";
     const weakBlock = weak.length ? `
@@ -1271,11 +1276,80 @@
   function countWords(text) { return String(text || "").trim().split(/\s+/).filter(Boolean).length; }
 
   function openWriting(exam, sectionId) {
-    const tasks = (exam.writingTasks || []).filter((task) => task.sectionId === sectionId);
+    const section = exam.sections.find((s) => s.id === sectionId);
+    const speaking = section?.kind === "speaking";
+    const tasks = (speaking ? exam.speakingTasks : exam.writingTasks || []).filter((task) => task.sectionId === sectionId);
     if (!tasks.length) { toast(t("Задания ещё не загружены", "Tasks are not available yet")); return; }
-    ex.writing = { exam, sectionId, tasks, task: null, phase: "pick", text: "", deadline: null, timerId: null, feedback: null, score: null, startedAt: null };
+    ex.writing = { exam, sectionId, speaking, tasks, task: null, phase: "pick", text: "", deadline: null, timerId: null, feedback: null, score: null, startedAt: null };
     document.body.classList.add("exam-running");
     renderWriting();
+  }
+
+  /* ---------- speech recognition (dictation for Speaking) ---------- */
+  const dictation = { recognizer: null, active: false, baseText: "" };
+
+  function speechRecognitionSupported() {
+    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  }
+
+  function stopDictation() {
+    dictation.active = false;
+    try { dictation.recognizer?.stop(); } catch {}
+    dictation.recognizer = null;
+    updateDictationUi();
+  }
+
+  function startDictation() {
+    if (!speechRecognitionSupported() || dictation.active) return;
+    const Recognizer = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognizer = new Recognizer();
+    recognizer.lang = "en-US";
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    dictation.recognizer = recognizer;
+    dictation.active = true;
+    dictation.baseText = ex.writing?.text || "";
+
+    recognizer.onresult = (event) => {
+      let finalText = "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const chunk = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += chunk;
+        else interim += chunk;
+      }
+      if (finalText) dictation.baseText = `${dictation.baseText} ${finalText.trim()}`.trim();
+      const textarea = document.getElementById("examWritingText");
+      const combined = `${dictation.baseText}${interim ? ` ${interim.trim()}` : ""}`.trim();
+      if (textarea) {
+        textarea.value = combined;
+        textarea.dispatchEvent(new Event("input"));
+        textarea.scrollTop = textarea.scrollHeight;
+      }
+    };
+    recognizer.onerror = (event) => {
+      dictation.active = false;
+      updateDictationUi();
+      if (event.error === "not-allowed") toast(t("Нет доступа к микрофону — разреши его в браузере", "Microphone access denied — allow it in your browser"));
+      else if (event.error !== "aborted") toast(t("Распознавание речи прервалось — попробуй ещё раз", "Speech recognition stopped — try again"));
+    };
+    recognizer.onend = () => {
+      // continuous mode still ends on long pauses; restart while the user is recording
+      if (dictation.active) { try { recognizer.start(); } catch { dictation.active = false; updateDictationUi(); } }
+      else updateDictationUi();
+    };
+    try { recognizer.start(); } catch { dictation.active = false; }
+    updateDictationUi();
+  }
+
+  function updateDictationUi() {
+    const button = document.querySelector("[data-action='exam-dictate']");
+    const status = document.getElementById("examDictationStatus");
+    if (button) {
+      button.classList.toggle("recording", dictation.active);
+      button.textContent = dictation.active ? `⏹ ${t("Остановить запись", "Stop recording")}` : `🎙 ${t("Говорить", "Speak")}`;
+    }
+    if (status) status.textContent = dictation.active ? t("Идёт запись — говори в микрофон", "Recording — speak into your microphone") : "";
   }
 
   function startWritingTask(taskId) {
@@ -1308,6 +1382,7 @@
   function closeWriting(force = false) {
     const w = ex.writing;
     if (!w) return;
+    stopDictation();
     const doClose = () => {
       if (w.timerId) clearInterval(w.timerId);
       ex.writing = null;
@@ -1337,6 +1412,7 @@
         : true;
       if (!sure) return;
     }
+    stopDictation();
     w.phase = "checking";
     renderWriting();
     try {
@@ -1345,6 +1421,7 @@
         method: "POST",
         body: {
           examId: w.exam.examId,
+          kind: w.speaking ? "speaking" : "writing",
           taskTitle: pick(w.task.title),
           taskPrompt: (w.task.prompt && (w.task.prompt[examLang] || pick(w.task.prompt))) || "",
           criteria: w.task.criteria || "",
@@ -1422,10 +1499,18 @@
           <div class="exam-writing-layout">
             <div class="exam-writing-prompt md-body">${renderMarkdown((w.task.prompt && (w.task.prompt[lang()] || pick(w.task.prompt))) || "")}</div>
             <div class="exam-writing-editor">
-              <textarea id="examWritingText" placeholder="${t("Пиши здесь…", "Write here…")}" spellcheck="true">${esc(w.text)}</textarea>
+              ${w.speaking ? `
+                <div class="exam-dictation">
+                  ${speechRecognitionSupported()
+                    ? `<button class="ghost-button exam-dictate-btn ${dictation.active ? "recording" : ""}" data-action="exam-dictate" type="button">${dictation.active ? `⏹ ${t("Остановить запись", "Stop recording")}` : `🎙 ${t("Говорить", "Speak")}`}</button>
+                       <span class="exam-dictation-hint">${t("Говори вслух — речь превратится в текст. Или печатай ответ вручную.", "Speak out loud — your speech becomes text. Or type your answer instead.")}</span>`
+                    : `<span class="exam-dictation-hint">${t("Браузер не поддерживает распознавание речи — напечатай свой ответ так, как сказал бы его вслух.", "This browser has no speech recognition — type your answer exactly as you would say it.")}</span>`}
+                  <span class="exam-dictation-status" id="examDictationStatus">${dictation.active ? t("Идёт запись — говори в микрофон", "Recording — speak into your microphone") : ""}</span>
+                </div>` : ""}
+              <textarea id="examWritingText" placeholder="${w.speaking ? t("Здесь появится расшифровка твоей речи…", "Your speech transcript will appear here…") : t("Пиши здесь…", "Write here…")}" spellcheck="true">${esc(w.text)}</textarea>
               <div class="exam-writing-bar">
                 <span id="examWritingWords" class="${words >= w.task.minWords ? "ok" : ""}">${words} / ${w.task.minWords} ${t("слов", "words")}</span>
-                <span class="exam-writing-autosave">${t("Черновик сохраняется автоматически", "Draft is saved automatically")}</span>
+                <span class="exam-writing-autosave">${w.speaking ? t("Оценивается содержание речи, не произношение", "Content is graded, not pronunciation") : t("Черновик сохраняется автоматически", "Draft is saved automatically")}</span>
                 <button class="primary-button" data-action="exam-writing-submit" type="button">${t("Отправить на проверку ИИ", "Submit for AI review")}</button>
               </div>
             </div>
@@ -1434,6 +1519,7 @@
       const textarea = document.getElementById("examWritingText");
       textarea.addEventListener("input", () => {
         w.text = textarea.value;
+        if (!dictation.active) dictation.baseText = textarea.value;
         localStorage.setItem(writingDraftKey(w.task.id), w.text);
         const counter = document.getElementById("examWritingWords");
         const count = countWords(w.text);
@@ -1442,7 +1528,7 @@
           counter.classList.toggle("ok", count >= w.task.minWords);
         }
       });
-      textarea.focus();
+      if (!dictation.active) textarea.focus();
       return;
     }
 
@@ -1617,6 +1703,7 @@
     if (action === "exam-writing-open" && exam) { openWriting(exam, target.dataset.section); return; }
     if (ex.writing) {
       if (action === "exam-writing-start") { startWritingTask(target.dataset.task); return; }
+      if (action === "exam-dictate") { dictation.active ? stopDictation() : startDictation(); return; }
       if (action === "exam-writing-submit") { submitWriting(); return; }
       if (action === "exam-writing-retry") { ex.writing.phase = "pick"; ex.writing.task = null; ex.writing.text = ""; renderWriting(); return; }
       if (action === "exam-writing-close") { closeWriting(); return; }

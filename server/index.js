@@ -1931,17 +1931,22 @@ app.post("/api/exam-writing-check", authMiddleware, safe(async (req, res) => {
   const maxScore = clamp(body.maxScore, 1, 100);
   const language = normalizeLanguage(body.language);
 
+  const isSpeaking = body.kind === "speaking";
   const gradingPrompt = [
     language === "en"
-      ? `You are a strict, experienced exam examiner. Grade the student's written work for the ${examId.toUpperCase()} exam.`
-      : `Ты — строгий опытный экзаменатор. Оцени письменную работу ученика для экзамена ${examId.toUpperCase()}.`,
+      ? (isSpeaking
+        ? `You are a strict, experienced IELTS speaking examiner. Below is a TRANSCRIPT of a candidate's spoken answer (produced by speech recognition, so ignore missing punctuation and obvious transcription artefacts). Grade what the candidate actually said.`
+        : `You are a strict, experienced exam examiner. Grade the student's written work for the ${examId.toUpperCase()} exam.`)
+      : (isSpeaking
+        ? `Ты — строгий опытный экзаменатор IELTS Speaking. Ниже — РАСШИФРОВКА устного ответа кандидата (сделана распознаванием речи, поэтому не придирайся к пунктуации и очевидным artefacts распознавания). Оценивай именно содержание и язык ответа.`
+        : `Ты — строгий опытный экзаменатор. Оцени письменную работу ученика для экзамена ${examId.toUpperCase()}.`),
     "",
     `TASK: ${taskTitle}`,
     taskPrompt ? `TASK TEXT:\n${taskPrompt}` : "",
     `GRADING CRITERIA: ${criteria}`,
     `MAXIMUM SCORE: ${maxScore}${examId === "ielts" ? " (IELTS band, 0-9, halves allowed)" : ""}`,
     "",
-    "STUDENT'S WORK:",
+    isSpeaking ? "CANDIDATE'S SPOKEN ANSWER (transcript):" : "STUDENT'S WORK:",
     "---",
     essay,
     "---",
