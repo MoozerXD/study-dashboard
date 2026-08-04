@@ -9,5 +9,8 @@ public.zip
 # Local data — never commit user data
 server/prisma/dev.db
 server/prisma/dev.db-journal
+server/prisma/dev.db-wal
+server/prisma/dev.db-shm
 server/dev.db
 server/data.json
+server/data.json.*

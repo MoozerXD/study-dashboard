@@ -18,6 +18,7 @@ import {
   renderSitemap,
   EXAM_IDS as SEO_EXAM_IDS,
 } from "./seo.js";
+import { initStore, loadStore, saveStore, storeStats } from "./store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,47 +81,9 @@ const prisma = new PrismaClient({
 
 let mailTransport = null;
 
-function createEmptyStore() {
-  return {
-    users: [],
-    emailCodes: [],
-    resetTokens: [],
-    subjects: [],
-    goals: [],
-    tasks: [],
-    materials: [],
-    studySessions: [],
-    aiRequests: [],
-    examAttempts: [],
-  };
-}
-
-if (!fs.existsSync(dataFile)) {
-  fs.writeFileSync(dataFile, JSON.stringify(createEmptyStore(), null, 2));
-}
-
-function loadStore() {
-  try {
-    const raw = fs.readFileSync(dataFile, "utf8");
-    return { ...createEmptyStore(), ...JSON.parse(raw || "{}") };
-  } catch (error) {
-    // Never silently wipe user data: keep the corrupt file for manual recovery.
-    try {
-      if (fs.existsSync(dataFile)) {
-        fs.copyFileSync(dataFile, `${dataFile}.corrupt-${Date.now()}`);
-        console.error("data.json is corrupt — a backup copy was saved next to it.", error?.message || error);
-      }
-    } catch {}
-    return createEmptyStore();
-  }
-}
-
-function saveStore(store) {
-  // Atomic write: a crash mid-write must not truncate the only copy of user data.
-  const tmpFile = `${dataFile}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2));
-  fs.renameSync(tmpFile, dataFile);
-}
+// Application data lives in SQLite (see store.js); loadStore/saveStore keep
+// their original shape so the handlers below did not have to change.
+const storeInit = initStore({ databaseUrl: DATABASE_URL, dataFile });
 
 function isEmailDeliveryConfigured() {
   return getEmailDeliveryMode() !== "dev";
@@ -2024,13 +1987,17 @@ const isLocalAppUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.
 app.listen(PORT, HOST, () => {
   console.log(`Study Dashboard server: ${APP_URL}`);
   console.log(`Listening on ${HOST}:${PORT}`);
-  console.log(`Data file: ${dataFile}`);
-  console.log(`Auth database: SQLite via Prisma`);
+  console.log(`Database: ${storeInit.path}`);
+  console.log(`Stored records: ${JSON.stringify(storeStats())}`);
   console.log(`Email delivery: ${getEmailDeliveryMode()}`);
   if (process.env.NODE_ENV === "production" && isLocalAppUrl) {
     console.warn("APP_URL is still local. Set APP_URL to your public domain so email links open correctly.");
   }
+  if (storeInit.migration.migrated) {
+    console.log(`Migrated ${storeInit.migration.total} record(s) from data.json into SQLite`);
+    console.log(`Previous data file kept as ${storeInit.migration.backup}`);
+  }
   if (legacyAuthSync.migrated) {
-    console.log(`Migrated ${legacyAuthSync.users} legacy auth account(s) from data.json to SQLite`);
+    console.log(`Migrated ${legacyAuthSync.users} legacy auth account(s) to SQLite`);
   }
 });
