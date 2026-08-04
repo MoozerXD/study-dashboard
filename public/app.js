@@ -20,7 +20,7 @@ const state = {
   calendarMode: "month",
   calendarSideView: "day",
   selectedDay: null,
-  subjectTab: "tests",
+  subjectTab: "progress",
   query: "",
   searchResults: [],
   activeSearchIndex: 0,
@@ -41,6 +41,7 @@ const EN_TEXT = {
   "Подготовка к экзаменам": "Exam preparation",
   "Все экзамены": "All exams",
   "Все пробные тесты": "All mock tests",
+  "Пробный тест": "Mock test",
   "Пробные тесты ЕНТ, ЕГЭ, IELTS, SAT": "Mock tests: UNT, EGE, IELTS, SAT",
   "Пробные тесты с таймером, банками вопросов и разбором ответов находятся в разделе «Экзамены».": "Timed mock tests with question banks and answer reviews live in the Exams section.",
   "Мини-тест от ИИ": "AI mini-test",
@@ -2143,7 +2144,13 @@ function setActiveRoute(route, options = {}) {
   document.querySelectorAll(".route").forEach((section) => section.classList.add("hidden"));
   document.getElementById(`route-${nextRoute}`)?.classList.remove("hidden");
   if (nextRoute === "profile") renderProfile();
-  if (nextRoute === "exams") window.StudyExams?.onEnter();
+  if (nextRoute === "exams") {
+    // Explicit nav click opens the catalog; Back/forward and deep links keep the #exam hash
+    if (options.push !== false && window.location.hash) {
+      window.history.replaceState({ route: "exams" }, "", "/exams");
+    }
+    window.StudyExams?.onEnter();
+  }
   if (options.push !== false && window.location.pathname !== routes[nextRoute]) {
     window.history.pushState({ route: nextRoute }, "", routes[nextRoute]);
   }

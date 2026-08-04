@@ -10,6 +10,7 @@
     { id: "sat", flag: "🇺🇸", accent: "#ffb020", name: { ru: "SAT", en: "SAT" } },
   ];
   const PRACTICE_LENGTHS = [10, 20];
+  const RUNNER_STORE_KEY = "studyExamRunner";
 
   const ex = {
     view: "catalog",          // catalog | detail
@@ -224,6 +225,97 @@
     return CATALOG.find((c) => c.id === examId)?.accent || "#5b8cff";
   }
 
+  /* ---------- interrupted-attempt persistence ---------- */
+  function persistRunner() {
+    const r = ex.runner;
+    if (!r || r.finished) { clearSavedRunner(); return; }
+    try {
+      localStorage.setItem(RUNNER_STORE_KEY, JSON.stringify({
+        examId: r.exam.examId,
+        practice: r.practice,
+        topic: r.topic,
+        buildArgs: r.buildArgs,
+        sectionIndex: r.sectionIndex,
+        questionIndex: r.questionIndex,
+        sections: r.sections.map((s) => ({ id: s.meta.id, questionIds: s.questions.map((q) => q.id), durationSec: s.durationSec })),
+        answers: [...r.answers.entries()],
+        startedAt: r.startedAt,
+        remainingSec: r.practice ? null : Math.max(0, Math.round((r.sectionDeadline - Date.now()) / 1000)),
+        fullMock: r.fullMock,
+        savedAt: Date.now(),
+      }));
+    } catch {}
+  }
+
+  function clearSavedRunner() { try { localStorage.removeItem(RUNNER_STORE_KEY); } catch {} }
+
+  function getSavedRunner() {
+    try {
+      const data = JSON.parse(localStorage.getItem(RUNNER_STORE_KEY) || "null");
+      if (!data?.examId || !Array.isArray(data.sections)) return null;
+      if (Date.now() - (data.savedAt || 0) > 24 * 3600 * 1000) { clearSavedRunner(); return null; }
+      return data;
+    } catch { return null; }
+  }
+
+  async function resumeSavedRunner() {
+    const data = getSavedRunner();
+    if (!data) return;
+    try {
+      const exam = await loadExam(data.examId);
+      const byId = new Map(exam.questions.map((q) => [q.id, q]));
+      const sections = data.sections.map((s) => ({
+        meta: exam.sections.find((m) => m.id === s.id),
+        questions: s.questionIds.map((id) => byId.get(id)).filter(Boolean),
+        durationSec: s.durationSec,
+      })).filter((s) => s.meta && s.questions.length);
+      if (!sections.length) throw new Error("empty sections");
+      const sectionIndex = Math.min(data.sectionIndex || 0, sections.length - 1);
+      startRunner({
+        exam,
+        practice: !!data.practice,
+        topic: data.topic || null,
+        buildArgs: data.buildArgs || { sectionIds: sections.map((s) => s.meta.id), options: { practice: !!data.practice } },
+        sections,
+        sectionIndex,
+        questionIndex: Math.min(data.questionIndex || 0, sections[sectionIndex].questions.length - 1),
+        answers: new Map(data.answers || []),
+        startedAt: data.startedAt || Date.now(),
+        sectionDeadline: data.practice ? null : Date.now() + (data.remainingSec ?? sections[sectionIndex].durationSec) * 1000,
+        timerId: null,
+        finished: false,
+        review: false,
+        savedAttempt: null,
+        fullMock: !!data.fullMock,
+      });
+    } catch {
+      clearSavedRunner();
+      toast(t("Не удалось восстановить тест", "Could not restore the test"));
+      render();
+    }
+  }
+
+  function renderResumeBanner() {
+    const data = getSavedRunner();
+    if (!data || ex.runner) return "";
+    const meta = CATALOG.find((c) => c.id === data.examId);
+    const exam = ex.cache[data.examId];
+    const answered = (data.answers || []).filter(([, a]) => a && a.value != null && a.value !== "").length;
+    const name = pick(exam?.title) || pick(meta?.name) || data.examId.toUpperCase();
+    const kind = data.practice ? t("практика", "practice") : t("пробный тест", "mock test");
+    return `
+      <div class="exam-resume-banner">
+        <div>
+          <strong>⏸ ${t("Незавершённый тест", "Unfinished test")}: ${esc(name)}</strong>
+          <small>${esc(kind)} · ${t("отвечено", "answered")}: ${answered}${data.remainingSec != null ? ` · ${t("осталось", "time left")} ${timerText(data.remainingSec)}` : ""}</small>
+        </div>
+        <div class="exam-resume-actions">
+          <button class="primary-button" data-action="exam-resume" type="button">${t("Продолжить", "Resume")}</button>
+          <button class="ghost-button" data-action="exam-discard-save" type="button">${t("Отменить", "Discard")}</button>
+        </div>
+      </div>`;
+  }
+
   /* ---------- rendering: root ---------- */
   function rootEl() { return document.getElementById("examsRoot"); }
 
@@ -231,9 +323,18 @@
     const root = rootEl();
     if (!root) return;
     if (ex.view === "detail" && ex.activeExamId && ex.cache[ex.activeExamId]) {
-      root.innerHTML = renderDetail(ex.cache[ex.activeExamId]);
+      root.innerHTML = renderResumeBanner() + renderDetail(ex.cache[ex.activeExamId]);
     } else {
-      root.innerHTML = renderCatalog();
+      root.innerHTML = renderResumeBanner() + renderCatalog();
+    }
+  }
+
+  function syncUrl() {
+    if (window.location.pathname !== "/exams") return;
+    const hash = ex.view === "detail" && ex.activeExamId ? `#${ex.activeExamId}` : "";
+    const target = `/exams${hash}`;
+    if (window.location.pathname + window.location.hash !== target) {
+      window.history.pushState({ route: "exams" }, "", target);
     }
   }
 
@@ -310,6 +411,49 @@
     return "";
   }
 
+  // A contextual "what to do next" hint so a new user never has to guess
+  function renderNextStep(exam) {
+    const attempts = attemptsFor(exam.examId);
+    if (!attempts.length) {
+      const first = exam.sections[0];
+      return `
+        <div class="exam-next-step">
+          <span class="exam-next-icon">🎯</span>
+          <div>
+            <strong>${t("С чего начать", "Where to start")}</strong>
+            <p>${t("Пройди одну секцию с таймером — это диагностика: после неё появятся твои слабые темы и график прогресса.", "Take one timed section as a diagnostic — afterwards you'll see your weak topics and a progress chart.")}</p>
+          </div>
+          <button class="primary-button" data-action="exam-start-section" data-section="${first.id}" type="button">${t("Начать диагностику", "Start diagnostic")}</button>
+        </div>`;
+    }
+    const weak = weakTopics(exam.examId, 3);
+    if (weak.length) {
+      return `
+        <div class="exam-next-step">
+          <span class="exam-next-icon">📈</span>
+          <div>
+            <strong>${t("Следующий шаг", "Next step")}</strong>
+            <p>${t("Потренируй слабые темы — это быстрее всего поднимет балл:", "Practise your weak topics — the fastest way to raise your score:")}</p>
+            <div class="exam-weak-list">
+              ${weak.map((w) => `
+                <button class="exam-weak-chip" data-action="exam-practice-topic" data-topic="${esc(w.topic)}" data-section="${esc(w.sectionId)}" type="button">
+                  <span>${esc(w.topic)}</span><small>${Math.round(w.accuracy * 100)}%</small>
+                </button>`).join("")}
+            </div>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="exam-next-step">
+        <span class="exam-next-icon">🚀</span>
+        <div>
+          <strong>${t("Следующий шаг", "Next step")}</strong>
+          <p>${t("Явных слабых тем не видно — самое время пройти полный пробник и закрепить результат.", "No obvious weak topics — time to take a full mock and lock in your progress.")}</p>
+        </div>
+        <button class="primary-button" data-action="exam-start-full" type="button">${t("Полный пробник", "Full mock")}</button>
+      </div>`;
+  }
+
   function renderMockTab(exam) {
     const totalQuestions = exam.sections.reduce((sum, s) => sum + s.questionsPerAttempt, 0);
     const totalMin = exam.sections.reduce((sum, s) => sum + s.durationMin, 0);
@@ -322,6 +466,7 @@
         <button class="ghost-button" data-action="exam-start-section" data-section="${s.id}" type="button">${t("Начать", "Start")}</button>
       </div>`).join("");
     return `
+      ${renderNextStep(exam)}
       <div class="exam-mock-layout">
         <article class="panel exam-full-mock" style="--exam-accent:${accentFor(exam.examId)}">
           <h3>${t("Полный пробный тест", "Full mock test")}</h3>
@@ -548,6 +693,7 @@
             label.textContent = timerText(left);
             label.classList.toggle("danger", left <= 60);
           }
+          if (left % 10 === 0) persistRunner(); // keep the saved copy's remaining time fresh
         }
       }, 1000);
     }
@@ -588,6 +734,7 @@
         : window.confirm(t("Выйти из теста? Прогресс будет потерян.", "Leave the test? Progress will be lost."));
       if (!sure) return;
     }
+    clearSavedRunner();
     stopRunner();
     render();
   }
@@ -650,6 +797,8 @@
       durationSec,
     };
     runner.result = { ...attempt, createdAt: new Date().toISOString() };
+    runner.result.interpretation = buildInterpretation(runner, attempt);
+    clearSavedRunner();
     renderRunner(); // show result screen immediately
     try {
       const saved = await api("/api/exam-attempts", { method: "POST", body: attempt });
@@ -658,6 +807,30 @@
     } catch {
       toast(t("Не удалось сохранить результат", "Could not save the result"));
     }
+  }
+
+  // Human context for the score: trend vs the previous attempt + real-world benchmarks
+  function buildInterpretation(runner, attempt) {
+    const lines = [];
+    const pct = attempt.score.total ? attempt.score.correct / attempt.score.total : 0;
+    const prev = attemptsFor(runner.exam.examId)[0]; // saved attempts are newest-first; current one is not saved yet
+    if (prev?.score?.total) {
+      const prevPct = prev.score.correct / prev.score.total;
+      const diff = Math.round((pct - prevPct) * 100);
+      if (diff > 2) lines.push(`📈 ${t(`На ${diff} п.п. точнее прошлой попытки — отличная динамика!`, `${diff} pts more accurate than your last attempt — great progress!`)}`);
+      else if (diff < -2) lines.push(`💪 ${t(`На ${Math.abs(diff)} п.п. ниже прошлой попытки. Загляни в разбор ответов — там видно, где ушли баллы.`, `${Math.abs(diff)} pts below your last attempt. Check the answer review to see where the points went.`)}`);
+      else lines.push(`⚖️ ${t("Результат на уровне прошлой попытки.", "On par with your last attempt.")}`);
+    }
+    if (runner.fullMock) {
+      const benchmarks = {
+        ent: t("Ориентиры ЕНТ: порог допуска — 50 баллов, на грант обычно нужно 70–110+, топ-специальности — 120+.", "UNT benchmarks: pass threshold 50, grants usually need 70–110+, top programs 120+."),
+        ege: t("Ориентиры ЕГЭ: минимальные пороги ~40 тестовых баллов, 60–80 — хороший результат, 80+ — сильный.", "EGE benchmarks: minimum ~40, 60–80 is good, 80+ is strong."),
+        ielts: t("Ориентиры IELTS: большинству вузов достаточно band 6.0–7.0, топ-программы просят 7.5+.", "IELTS benchmarks: most universities ask for band 6.0–7.0, top programs 7.5+."),
+        sat: t("Ориентиры SAT: средний балл ~1050, сильный результат 1300+, топ-вузы ждут 1450+.", "SAT benchmarks: average ~1050, strong 1300+, top schools expect 1450+."),
+      };
+      if (benchmarks[runner.exam.examId]) lines.push(`🎓 ${benchmarks[runner.exam.examId]}`);
+    }
+    return lines;
   }
 
   /* ---------- runner rendering ---------- */
@@ -699,13 +872,19 @@
       return `<button class="exam-dot ${cls}" data-action="exam-goto" data-index="${i}" type="button" aria-label="${t("Вопрос", "Question")} ${i + 1}">${i + 1}</button>`;
     }).join("");
 
+    const answeredCount = section.questions.filter((q) => {
+      const a = runner.answers.get(q.id);
+      return a && a.value != null && a.value !== "";
+    }).length;
+
     let body;
     if (question.type === "input") {
       const checked = runner.practice && answer.checked;
       body = `
         <input class="exam-input" id="examInputAnswer" type="text" autocomplete="off"
           placeholder="${t("Введи ответ", "Type your answer")}" value="${esc(answer.value ?? "")}" ${checked ? "disabled" : ""}>
-        ${runner.practice && !checked ? `<button class="primary-button exam-check-btn" data-action="exam-check" type="button">${t("Проверить", "Check")}</button>` : ""}`;
+        ${runner.practice && !checked ? `<button class="primary-button exam-check-btn" data-action="exam-check" type="button">${t("Проверить", "Check")}</button>` : ""}
+        ${!runner.practice ? `<small class="exam-input-hint">${t("Ответ сохраняется автоматически", "Your answer is saved automatically")}</small>` : ""}`;
     } else {
       body = `<div class="exam-choices">${question.choices.map((choice, i) => {
         const isPicked = Number(answer.value) === i && answer.value != null;
@@ -759,15 +938,18 @@
         </div>
         <footer class="exam-runner-foot">
           <button class="ghost-button" data-action="exam-prev" type="button" ${index === 0 ? "disabled" : ""}>← ${t("Назад", "Back")}</button>
+          ${runner.practice ? "" : `<span class="exam-answered-count" title="${t("Отвечено", "Answered")}">${answeredCount}/${count}</span>`}
           <div class="exam-palette">${runner.practice ? "" : palette}</div>
           ${nextLabel ? `<button class="primary-button" data-action="exam-next" type="button" ${runner.practice && !answer.checked && answer.value != null && question.type !== "input" ? "" : ""}>${nextLabel} →</button>` : ""}
           ${!runner.practice && isLastQuestion ? `<button class="primary-button" data-action="exam-finish-section" type="button">${runner.sectionIndex < runner.sections.length - 1 ? t("Следующая секция", "Next section") : t("Завершить тест", "Finish test")}</button>` : ""}
         </footer>
       </div>`;
 
+    if (!runner.finished) persistRunner();
+
     const input = document.getElementById("examInputAnswer");
     if (input) {
-      input.addEventListener("input", () => { answerFor(question.id).value = input.value; });
+      input.addEventListener("input", () => { answerFor(question.id).value = input.value; persistRunner(); });
       input.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -808,6 +990,7 @@
             </div>
             <div class="exam-result-ring" style="--pct:${pct}"><span>${pct}%</span></div>
           </div>
+          ${(result.interpretation || []).length ? `<div class="exam-result-notes">${result.interpretation.map((line) => `<p>${esc(line)}</p>`).join("")}</div>` : ""}
           <div class="exam-result-sections">${sectionRows}</div>
           ${weakRows.length ? `
             <div class="exam-result-weak">
@@ -933,6 +1116,7 @@
       ex.openMaterialId = null;
       const routeHidden = document.getElementById("route-exams")?.classList.contains("hidden");
       if (routeHidden && typeof setActiveRoute === "function") setActiveRoute("exams");
+      syncUrl();
       render(); // show whatever we have; then load
       try {
         await Promise.all([loadExam(examId), loadAttempts()]);
@@ -944,8 +1128,10 @@
       }
       return;
     }
-    if (action === "exam-back") { ex.view = "catalog"; render(); return; }
+    if (action === "exam-back") { ex.view = "catalog"; syncUrl(); render(); return; }
     if (action === "exam-tab") { ex.tab = target.dataset.tab; render(); return; }
+    if (action === "exam-resume") { resumeSavedRunner(); return; }
+    if (action === "exam-discard-save") { clearSavedRunner(); render(); return; }
     if (action === "exam-material") {
       ex.openMaterialId = ex.openMaterialId === target.dataset.material ? null : target.dataset.material;
       render();
@@ -1006,15 +1192,20 @@
     if (action === "exam-next") { advance(); return; }
     if (action === "exam-goto") { goToQuestion(Number(target.dataset.index)); return; }
     if (action === "exam-finish-section") {
-      const unanswered = currentSection().questions.filter((q) => {
+      const questions = currentSection().questions;
+      const unanswered = questions.filter((q) => {
         const a = ex.runner.answers.get(q.id);
         return a?.value == null || a.value === "";
       }).length;
-      if (unanswered > 0) {
+      const flagged = questions.filter((q) => ex.runner.answers.get(q.id)?.flagged).length;
+      if (unanswered > 0 || flagged > 0) {
+        const parts = [];
+        if (unanswered > 0) parts.push(`${t("Без ответа", "Unanswered")}: ${unanswered}.`);
+        if (flagged > 0) parts.push(`${t("Помечено флажком", "Flagged")}: ${flagged}.`);
         const sure = typeof confirmAction === "function"
           ? await confirmAction({
               title: t("Завершить секцию?", "Finish the section?"),
-              text: `${t("Без ответа", "Unanswered")}: ${unanswered}. ${t("Вернуться будет нельзя.", "You won't be able to return.")}`,
+              text: `${parts.join(" ")} ${t("Вернуться будет нельзя.", "You won't be able to return.")}`,
               okText: t("Завершить", "Finish"),
             })
           : window.confirm(t("Есть вопросы без ответа. Завершить?", "There are unanswered questions. Finish?"));
@@ -1077,6 +1268,14 @@
   /* ---------- public API ---------- */
   window.StudyExams = {
     async onEnter() {
+      // Deep link: /exams#ent opens the exam directly; also keeps browser Back working
+      const hash = window.location.hash.slice(1);
+      if (CATALOG.some((c) => c.id === hash)) {
+        ex.view = "detail";
+        ex.activeExamId = hash;
+      } else {
+        ex.view = "catalog";
+      }
       render();
       try {
         await loadAttempts();

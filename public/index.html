@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=6">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-215D4GWVKF"></script>
   <script>
@@ -78,9 +78,9 @@
 
       <nav class="nav-list" aria-label="Главная навигация">
         <button class="nav-link active" data-route="dashboard" type="button"><svg><use href="#i-home"></use></svg><span>Дашборд</span></button>
+        <button class="nav-link" data-route="exams" type="button"><svg><use href="#i-list"></use></svg><span>Экзамены</span></button>
         <button class="nav-link" data-route="tasks" type="button"><svg><use href="#i-check"></use></svg><span>Задачи</span></button>
         <button class="nav-link" data-route="subjects" type="button"><svg><use href="#i-book"></use></svg><span>Предметы</span></button>
-        <button class="nav-link" data-route="exams" type="button"><svg><use href="#i-list"></use></svg><span>Экзамены</span></button>
         <button class="nav-link" data-route="calendar" type="button"><svg><use href="#i-calendar"></use></svg><span>Календарь</span></button>
         <button class="nav-link" data-route="ai" type="button"><svg><use href="#i-spark"></use></svg><span>ИИ-помощник</span></button>
         <button class="nav-link" data-route="profile" type="button"><svg><use href="#i-user"></use></svg><span>Профиль</span></button>
@@ -142,6 +142,7 @@
               <p>Планируй, выполняй задачи и получай персональные рекомендации для уверенного прогресса каждый день.</p>
               <div class="hero-actions">
                 <button class="primary-button open-task-modal" type="button"><svg><use href="#i-plus"></use></svg>Создать задачу</button>
+                <button class="ghost-button nav-jump" data-route="exams" type="button"><svg><use href="#i-list"></use></svg>Пробный тест</button>
                 <button class="ghost-button nav-jump" data-route="ai" type="button"><svg><use href="#i-spark"></use></svg>Открыть ИИ-помощника</button>
               </div>
             </div>
@@ -476,7 +477,7 @@
                   <button class="ghost-button open-subject-modal" type="button"><svg><use href="#i-plus"></use></svg>Добавить предмет</button>
                 </div>
               </div>
-              <div class="subject-tabs"><button data-subject-tab="materials" type="button">Материалы</button><button class="active" data-subject-tab="tests" type="button">Тесты</button><button data-subject-tab="progress" type="button">Прогресс</button></div>
+              <div class="subject-tabs"><button class="active" data-subject-tab="progress" type="button">Прогресс</button><button data-subject-tab="tests" type="button">Тесты</button><button data-subject-tab="materials" type="button">Материалы</button></div>
               <div class="test-list" id="subjectTests"></div>
               <button class="link-button" data-action="all-tests" type="button">Все пробные тесты <svg><use href="#i-arrow"></use></svg></button>
             </article>
@@ -551,8 +552,8 @@
   </div>
 
   <script src="./dashboard-auth.js"></script>
-  <script src="/app.js?v=7"></script>
-  <script src="/exams.js?v=3"></script>
+  <script src="/app.js?v=8"></script>
+  <script src="/exams.js?v=4"></script>
   <script defer src="./focus-timer.js"></script>
   <script defer src="./enhance.js"></script>
 </body>
