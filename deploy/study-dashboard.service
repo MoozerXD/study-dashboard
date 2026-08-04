@@ -1,0 +1,42 @@
+# systemd unit for Study Dashboard.
+# Copy to /etc/systemd/system/study-dashboard.service, adjust User and paths,
+# then: systemctl daemon-reload && systemctl enable --now study-dashboard
+#
+# Environment variables are read from server/.env by the app itself, so this
+# unit deliberately does not duplicate them.
+
+[Unit]
+Description=Study Dashboard
+Documentation=https://github.com/MoozerXD/study-dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/study-dashboard
+
+# npm start applies pending Prisma migrations and then boots the server.
+ExecStart=/usr/bin/npm start
+Environment=NODE_ENV=production
+
+Restart=always
+RestartSec=5
+# Give SQLite a moment to checkpoint the WAL before a hard kill.
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=study-dashboard
+
+# Hardening: the app only ever writes inside its own directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/study-dashboard/server
+
+[Install]
+WantedBy=multi-user.target
