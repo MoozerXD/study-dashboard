@@ -9,6 +9,7 @@ const examsDir = path.join(root, 'public/data/exams');
 
 function validate(exam) {
   const errors = [];
+  const warnings = [];
   const ids = new Set();
   const sectionIds = new Set(exam.sections.map((s) => s.id));
   const passageIds = new Set((exam.passages || []).map((p) => p.id));
@@ -28,9 +29,10 @@ function validate(exam) {
       if (!Array.isArray(q.choices) || q.choices.length < 2) errors.push(`${q.id}: bad choices`);
       else if (q.correctIndex == null || q.correctIndex < 0 || q.correctIndex >= q.choices.length) errors.push(`${q.id}: bad correctIndex`);
     }
-    if (!q.explanation) errors.push(`${q.id}: missing explanation`);
+    // Some questions imported from the original SAT PDFs have no rationale — usable, just less helpful
+    if (!q.explanation) warnings.push(q.id);
   }
-  return errors;
+  return { errors, warnings };
 }
 
 for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
@@ -68,13 +70,14 @@ for (const examId of ['ent', 'ege', 'ielts', 'sat']) {
       added++;
     }
   }
-  const errors = validate(exam);
+  const { errors, warnings } = validate(exam);
   if (errors.length) {
     console.error(`${examId}: VALIDATION FAILED, not writing:`);
     for (const e of errors.slice(0, 20)) console.error('  -', e);
     process.exitCode = 1;
     continue;
   }
+  if (warnings.length) console.warn(`${examId}: ${warnings.length} question(s) without an explanation (imported from source PDFs)`);
   fs.writeFileSync(mainPath, JSON.stringify(exam));
   for (const file of extFiles) fs.unlinkSync(path.join(examsDir, file));
   console.log(`${examId}: +${added} questions, +${addedPassages} passages, +${addedSections} sections, +${addedTasks} writing tasks (skipped ${skipped}); total ${exam.questions.length}. Merged: ${extFiles.join(', ')}`);

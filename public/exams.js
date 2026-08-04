@@ -93,7 +93,8 @@
   async function loadExam(examId) {
     if (ex.cache[examId]) return ex.cache[examId];
     if (!ex.loading[examId]) {
-      ex.loading[examId] = fetch(`/data/exams/${examId}.json`).then((res) => {
+      // revalidate so a rebuilt question bank is picked up instead of a stale cached copy
+      ex.loading[examId] = fetch(`/data/exams/${examId}.json`, { cache: "no-cache" }).then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       });
@@ -563,20 +564,17 @@
   }
 
   function renderMockTab(exam) {
-    const questionSections = exam.sections.filter((s) => s.kind !== "writing");
-    const hasEntPairs = exam.examId === "ent" && exam.sections.some((s) => s.id === "biology");
-    const countedSections = hasEntPairs
-      ? exam.sections.filter((s) => [...ENT_MANDATORY, ...ENT_PROFILE_PAIRS.mathphys.ids].includes(s.id))
+    const questionSections = exam.sections.filter((s) => s.kind !== "writing" && s.kind !== "speaking");
+    const plan = mockPlan(exam);
+    const plannedIds = plan
+      ? [...plan.mandatory, ...(plan.mode === "pair" ? Object.values(plan.pairs)[0].ids : plan.defaults)]
+      : null;
+    const countedSections = plannedIds
+      ? exam.sections.filter((s) => plannedIds.includes(s.id))
       : questionSections;
     const totalQuestions = countedSections.reduce((sum, s) => sum + s.questionsPerAttempt, 0);
     const totalMin = countedSections.reduce((sum, s) => sum + s.durationMin, 0);
-    const entPairPicker = hasEntPairs ? `
-      <label class="exam-profile-pick">
-        <span>${t("Профильные предметы", "Profile subjects")}:</span>
-        <select id="examProfilePair">
-          ${Object.entries(ENT_PROFILE_PAIRS).map(([key, pair]) => `<option value="${key}">${esc(pick(pair.label))}</option>`).join("")}
-        </select>
-      </label>` : "";
+    const entPairPicker = renderMockPlanPicker(exam);
     const sectionRows = exam.sections.map((s) => {
       if (s.kind === "writing" || s.kind === "speaking") {
         const speaking = s.kind === "speaking";
@@ -832,20 +830,77 @@
     };
   }
 
-  // ЕНТ: обязательные предметы + выбранная профильная пара (как на реальном экзамене)
-  const ENT_MANDATORY = ["history_kz", "math_literacy", "reading_literacy"];
-  const ENT_PROFILE_PAIRS = {
-    mathphys: { ids: ["math_profile", "physics"], label: { ru: "Математика + Физика", en: "Math + Physics" } },
-    biochem: { ids: ["biology", "chemistry"], label: { ru: "Биология + Химия", en: "Biology + Chemistry" } },
+  // A real sitting is mandatory subjects plus the ones the student chose, not every section at once.
+  const MOCK_PLANS = {
+    ent: {
+      mandatory: ["history_kz", "math_literacy", "reading_literacy"],
+      mode: "pair",
+      label: { ru: "Профильные предметы", en: "Profile subjects" },
+      pairs: {
+        mathphys: { ids: ["math_profile", "physics"], label: { ru: "Математика + Физика", en: "Math + Physics" } },
+        biochem: { ids: ["biology", "chemistry"], label: { ru: "Биология + Химия", en: "Biology + Chemistry" } },
+      },
+    },
+    ege: {
+      mandatory: ["russian", "math_profile"],
+      mode: "choice",
+      maxChoices: 2,
+      label: { ru: "Предметы по выбору (до 2)", en: "Optional subjects (up to 2)" },
+      note: { ru: "Обязательные: русский язык и математика", en: "Mandatory: Russian and mathematics" },
+      options: ["physics", "informatics", "social", "history"],
+      defaults: ["physics", "informatics"],
+    },
   };
 
+  function mockPlan(exam) {
+    const plan = MOCK_PLANS[exam.examId];
+    if (!plan) return null;
+    // only apply once the bank actually contains the extra sections
+    const known = new Set(exam.sections.map((s) => s.id));
+    const pool = plan.mode === "pair" ? Object.values(plan.pairs).flatMap((p) => p.ids) : plan.options;
+    return pool.every((id) => known.has(id)) ? plan : null;
+  }
+
   function fullMockSectionIds(exam) {
-    if (exam.examId === "ent" && exam.sections.some((s) => s.id === "biology")) {
-      const pairKey = document.getElementById("examProfilePair")?.value || "mathphys";
-      const pair = ENT_PROFILE_PAIRS[pairKey] || ENT_PROFILE_PAIRS.mathphys;
-      return [...ENT_MANDATORY, ...pair.ids].filter((id) => exam.sections.some((s) => s.id === id));
+    const plan = mockPlan(exam);
+    if (!plan) return exam.sections.filter((s) => s.kind !== "writing").map((s) => s.id);
+    let chosen = [];
+    if (plan.mode === "pair") {
+      const key = document.getElementById("examProfilePair")?.value;
+      chosen = (plan.pairs[key] || Object.values(plan.pairs)[0]).ids;
+    } else {
+      chosen = [...document.querySelectorAll("[data-mock-option]:checked")].map((el) => el.dataset.mockOption);
+      if (!chosen.length) chosen = plan.defaults;
+      chosen = chosen.slice(0, plan.maxChoices);
     }
-    return exam.sections.filter((s) => s.kind !== "writing").map((s) => s.id);
+    return [...plan.mandatory, ...chosen].filter((id) => exam.sections.some((s) => s.id === id));
+  }
+
+  function renderMockPlanPicker(exam) {
+    const plan = mockPlan(exam);
+    if (!plan) return "";
+    const title = (id) => esc(pick(exam.sections.find((s) => s.id === id)?.title) || id);
+    if (plan.mode === "pair") {
+      return `
+        <label class="exam-profile-pick">
+          <span>${esc(pick(plan.label))}:</span>
+          <select id="examProfilePair">
+            ${Object.entries(plan.pairs).map(([key, pair]) => `<option value="${key}">${esc(pick(pair.label))}</option>`).join("")}
+          </select>
+        </label>`;
+    }
+    return `
+      <div class="exam-mock-options">
+        <span class="exam-mock-options-label">${esc(pick(plan.label))}</span>
+        <div class="exam-mock-option-list">
+          ${plan.options.map((id) => `
+            <label class="exam-mock-option">
+              <input type="checkbox" data-mock-option="${id}" ${plan.defaults.includes(id) ? "checked" : ""}>
+              <span>${title(id)}</span>
+            </label>`).join("")}
+        </div>
+        <small>${esc(pick(plan.note))}</small>
+      </div>`;
   }
 
   function startRunner(runner) {
