@@ -376,7 +376,8 @@ async function api(path, options = {}) {
     body: options.body && !(options.body instanceof FormData) ? JSON.stringify(options.body) : options.body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  // Some errors (rate limiting) ship both languages; show the one in use.
+  if (!res.ok) throw new Error((currentLanguage() === "en" && data.errorEn) || data.error || "Request failed");
   return data;
 }
 

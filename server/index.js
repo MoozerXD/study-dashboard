@@ -401,6 +401,10 @@ const dashboardRoutes = ["/dashboard", "/tasks", "/subjects", "/calendar", "/pro
 const authRoutes = ["/login", "/register", "/reset", "/confirm", "/almost", "/auth"];
 
 const app = express();
+// Behind the nginx reverse proxy in deploy/, req.ip must come from
+// X-Forwarded-For or every visitor shares the proxy's address and one of them
+// can exhaust everyone's rate limit.
+app.set("trust proxy", 1);
 // Only allow the app's own origin and local development hosts (cookie auth + reflected
 // origins would otherwise leave the API open to cross-site requests).
 const allowedOrigins = new Set([APP_URL, `http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`]);
@@ -1321,6 +1325,50 @@ function getAiConfigStatus() {
   };
 }
 
+/* ------------------------------------------------------- rate limiting --- */
+// Login and password reset are brute-force targets; the AI endpoints cost real
+// money per call. Counters live in memory, which is enough for a single-process
+// deployment — move them to Redis if the app is ever run on several instances.
+const rateBuckets = new Map();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
+}, 5 * 60_000).unref();
+
+function rateLimit({ windowMs, max, scope, by = "ip" }) {
+  return (req, res, next) => {
+    const identity = by === "user" ? (req.userId || req.ip) : req.ip;
+    const key = `${scope}:${identity}`;
+    const now = Date.now();
+    let bucket = rateBuckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      bucket = { count: 0, resetAt: now + windowMs };
+      rateBuckets.set(key, bucket);
+    }
+    bucket.count += 1;
+    if (bucket.count > max) {
+      const retryAfter = Math.ceil((bucket.resetAt - now) / 1000);
+      res.set("Retry-After", String(retryAfter));
+      const minutes = Math.max(1, Math.ceil(retryAfter / 60));
+      return res.status(429).json({
+        error: `Слишком много запросов. Попробуйте снова через ${minutes} мин.`,
+        errorEn: `Too many requests. Try again in ${minutes} min.`,
+        retryAfter,
+      });
+    }
+    next();
+  };
+}
+
+const loginLimiter = rateLimit({ windowMs: 15 * 60_000, max: 12, scope: "login" });
+const registerLimiter = rateLimit({ windowMs: 60 * 60_000, max: 6, scope: "register" });
+const emailLimiter = rateLimit({ windowMs: 15 * 60_000, max: 6, scope: "email" });
+const aiLimiter = rateLimit({ windowMs: 60 * 60_000, max: 40, scope: "ai", by: "user" });
+const writingLimiter = rateLimit({ windowMs: 60 * 60_000, max: 15, scope: "writing", by: "user" });
+
 function safe(handler) {
   return (req, res) => Promise.resolve(handler(req, res)).catch((error) => {
     console.error(error);
@@ -1329,7 +1377,7 @@ function safe(handler) {
 }
 
 // AUTH
-app.post("/api/auth/register", safe(async (req, res) => {
+app.post("/api/auth/register", registerLimiter, safe(async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "").trim();
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
@@ -1352,7 +1400,7 @@ app.post("/api/auth/register", safe(async (req, res) => {
   res.json({ ok: true, message: "Account created. Check your email for the confirmation code.", delivery: "email" });
 }));
 
-app.post("/api/auth/resend-code", safe(async (req, res) => {
+app.post("/api/auth/resend-code", emailLimiter, safe(async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ error: "Email required" });
   const user = await getAuthUserByEmail(email);
@@ -1401,7 +1449,7 @@ app.post("/api/auth/confirm-email", safe(async (req, res) => {
   res.json({ ok: true, message: "Email confirmed" });
 }));
 
-app.post("/api/auth/login", safe(async (req, res) => {
+app.post("/api/auth/login", loginLimiter, safe(async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "");
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
@@ -1426,7 +1474,7 @@ app.get("/api/auth/me", authMiddleware, safe(async (req, res) => {
   res.json({ user: publicUser(user) });
 }));
 
-app.post("/api/auth/request-password-reset", safe(async (req, res) => {
+app.post("/api/auth/request-password-reset", emailLimiter, safe(async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ error: "Email required" });
   const user = await getAuthUserByEmail(email);
@@ -1440,7 +1488,7 @@ app.post("/api/auth/request-password-reset", safe(async (req, res) => {
   res.json({ ok: true, message: "Password reset instructions were sent to your email.", delivery: "email" });
 }));
 
-app.post("/api/auth/reset-password", safe(async (req, res) => {
+app.post("/api/auth/reset-password", emailLimiter, safe(async (req, res) => {
   const token = String(req.body?.token || "").trim();
   const password = String(req.body?.password || "").trim();
   if (!token || !password) return res.status(400).json({ error: "Token and password required" });
@@ -1797,7 +1845,7 @@ app.get("/api/ai-status", authMiddleware, safe(async (req, res) => {
 }));
 
 // AI
-app.post("/api/ai-plan", authMiddleware, safe(async (req, res) => {
+app.post("/api/ai-plan", authMiddleware, aiLimiter, safe(async (req, res) => {
   const store = loadStore();
   const attachments = normalizeAiAttachments(req.body?.attachments || []);
   const language = normalizeLanguage(req.body?.language);
@@ -1912,7 +1960,7 @@ app.post("/api/exam-attempts", authMiddleware, safe(async (req, res) => {
   res.status(201).json(attempt);
 }));
 
-app.post("/api/exam-writing-check", authMiddleware, safe(async (req, res) => {
+app.post("/api/exam-writing-check", authMiddleware, writingLimiter, safe(async (req, res) => {
   const body = req.body || {};
   const examId = String(body.examId || "").trim();
   if (!EXAM_IDS.includes(examId)) return res.status(400).json({ error: "Unknown examId" });
