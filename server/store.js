@@ -48,6 +48,10 @@ const COLLECTIONS = {
     columns: ["id", "userId", "examId", "mode", "sections", "topics", "score", "durationSec", "createdAt"],
     json: ["sections", "topics", "score"],
   },
+  profiles: {
+    table: "app_profiles",
+    columns: ["id", "userId", "displayName", "role", "avatar", "createdAt", "updatedAt"],
+  },
 };
 
 // Kept in the in-memory shape for backwards compatibility; the real auth

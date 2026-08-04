@@ -223,6 +223,25 @@
     }
   }
 
+  // A finished focus block is real study time: record it so the streak,
+  // heatmap and weekly trend on the server stop reading as zero.
+  function reportSession(minutes) {
+    const token = (() => {
+      try { return localStorage.getItem("authToken") || sessionStorage.getItem("authToken") || ""; }
+      catch { return ""; }
+    })();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch("/api/sessions", {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ minutes, note: "Pomodoro" }),
+    })
+      .then((res) => { if (res.ok && typeof window.refresh === "function") window.refresh(); })
+      .catch(() => { /* offline or signed out — the local count still updates */ });
+  }
+
   function complete() {
     state.running = false;
     stopTicker();
@@ -230,6 +249,7 @@
     const wasFocus = state.mode === "focus";
     if (wasFocus) {
       bumpCount();
+      reportSession(MODES.focus.mins);
       notify(t().doneFocus);
       state.mode = "short";
     } else {

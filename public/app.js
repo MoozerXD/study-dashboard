@@ -9,6 +9,7 @@ const state = {
   analytics: null,
   aiHistory: [],
   aiStatus: null,
+  profile: null,
   aiConversation: [],
   aiAttachments: [],
   aiPendingTaskDrafts: [],
@@ -1080,16 +1081,39 @@ function getDefaultProfileName() {
   return "Студент";
 }
 
+// The profile lives on the server so it follows the account across devices.
+// localStorage is kept as an offline cache and as the source for the one-time
+// migration of profiles that were only ever stored in the browser.
 function getProfileName() {
-  return localStorage.getItem("studyProfileName") || getDefaultProfileName();
+  return state.profile?.displayName || localStorage.getItem("studyProfileName") || getDefaultProfileName();
 }
 
 function getProfileRole() {
-  return localStorage.getItem("studyProfileRole") || "Студент";
+  return state.profile?.role || localStorage.getItem("studyProfileRole") || "Студент";
 }
 
 function getProfileAvatar() {
-  return localStorage.getItem("studyProfileAvatar") || "";
+  return state.profile?.avatar || localStorage.getItem("studyProfileAvatar") || "";
+}
+
+async function saveProfile(patch) {
+  state.profile = { ...(state.profile || {}), ...patch };
+  // Mirror locally so the interface survives a reload even if the request fails.
+  if (patch.displayName !== undefined) localStorage.setItem("studyProfileName", patch.displayName);
+  if (patch.role !== undefined) localStorage.setItem("studyProfileRole", patch.role);
+  if (patch.avatar !== undefined) {
+    if (patch.avatar) localStorage.setItem("studyProfileAvatar", patch.avatar);
+    else localStorage.removeItem("studyProfileAvatar");
+  }
+  renderUser();
+  renderProfile();
+  try {
+    await api("/api/profile", { method: "PUT", body: patch });
+    return true;
+  } catch (error) {
+    toast(error.message || "Не удалось сохранить профиль на сервере");
+    return false;
+  }
 }
 
 function getProfileInitials() {
@@ -2094,6 +2118,7 @@ async function loadAll() {
     api("/api/analytics"),
     api("/api/ai-history"),
     api("/api/ai-status"),
+    api("/api/profile"),
   ];
 
   const results = await Promise.allSettled(endpoints);
@@ -2111,7 +2136,24 @@ async function loadAll() {
   state.analytics = value(7, null);
   state.aiHistory = Array.isArray(value(8, [])) ? value(8, []) : [];
   state.aiStatus = value(9, null);
+  state.profile = value(10, null);
+  await migrateLocalProfile();
   renderAll();
+}
+
+// Profiles used to live only in this browser. The first time an account loads
+// an empty server profile, push whatever is stored locally so nothing is lost.
+async function migrateLocalProfile() {
+  if (!state.profile || state.profile.displayName || state.profile.role || state.profile.avatar) return;
+  const local = {
+    displayName: localStorage.getItem("studyProfileName") || "",
+    role: localStorage.getItem("studyProfileRole") || "",
+    avatar: localStorage.getItem("studyProfileAvatar") || "",
+  };
+  if (!local.displayName && !local.role && !local.avatar) return;
+  try {
+    state.profile = await api("/api/profile", { method: "PUT", body: local });
+  } catch { /* keep using the local copy until the next load */ }
 }
 
 async function refresh() {
@@ -2372,16 +2414,12 @@ function bindEvents() {
     }
   });
 
-  document.getElementById("profileForm")?.addEventListener("submit", (event) => {
+  document.getElementById("profileForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const displayName = String(form.get("displayName") || "").trim() || getDefaultProfileName();
     const role = String(form.get("role") || "Студент").trim() || "Студент";
-    localStorage.setItem("studyProfileName", displayName);
-    localStorage.setItem("studyProfileRole", role);
-    renderUser();
-    renderProfile();
-    toast("Профиль обновлен");
+    if (await saveProfile({ displayName, role })) toast("Профиль обновлен");
   });
   document.getElementById("profileAvatarInput")?.addEventListener("change", (event) => {
     const file = event.currentTarget.files?.[0];
@@ -2397,21 +2435,15 @@ function bindEvents() {
       return;
     }
     const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      localStorage.setItem("studyProfileAvatar", String(reader.result || ""));
-      renderUser();
-      renderProfile();
-      toast("Аватар обновлен");
+    reader.addEventListener("load", async () => {
+      if (await saveProfile({ avatar: String(reader.result || "") })) toast("Аватар обновлен");
     });
     reader.readAsDataURL(file);
   });
-  document.getElementById("profileAvatarRemoveBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("studyProfileAvatar");
+  document.getElementById("profileAvatarRemoveBtn")?.addEventListener("click", async () => {
     const input = document.getElementById("profileAvatarInput");
     if (input) input.value = "";
-    renderUser();
-    renderProfile();
-    toast("Аватар сброшен");
+    if (await saveProfile({ avatar: "" })) toast("Аватар сброшен");
   });
 
   document.body.addEventListener("click", async (event) => {

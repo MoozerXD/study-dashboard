@@ -1902,6 +1902,43 @@ app.get("/api/ai-history", authMiddleware, safe(async (req, res) => {
   res.json(sortByCreatedDesc(store.aiRequests.filter((x) => x.userId === req.userId)).slice(0, 20));
 }));
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+app.get("/api/profile", authMiddleware, safe(async (req, res) => {
+  const store = loadStore();
+  const profile = store.profiles.find((x) => x.userId === req.userId) || null;
+  res.json({
+    displayName: profile?.displayName || "",
+    role: profile?.role || "",
+    avatar: profile?.avatar || "",
+  });
+}));
+
+app.put("/api/profile", authMiddleware, safe(async (req, res) => {
+  const body = req.body || {};
+  const avatar = String(body.avatar || "");
+  if (avatar && !/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(avatar)) {
+    return res.status(400).json({ error: "Avatar must be a base64 image" });
+  }
+  if (avatar.length > AVATAR_MAX_BYTES) {
+    return res.status(413).json({ error: "Avatar is too large" });
+  }
+
+  const store = loadStore();
+  let profile = store.profiles.find((x) => x.userId === req.userId);
+  if (!profile) {
+    profile = { id: uid(), userId: req.userId, createdAt: nowIso() };
+    store.profiles.push(profile);
+  }
+  if (body.displayName !== undefined) profile.displayName = String(body.displayName).trim().slice(0, 80);
+  if (body.role !== undefined) profile.role = String(body.role).trim().slice(0, 40);
+  if (body.avatar !== undefined) profile.avatar = avatar;
+  profile.updatedAt = nowIso();
+  saveStore(store);
+
+  res.json({ displayName: profile.displayName || "", role: profile.role || "", avatar: profile.avatar || "" });
+}));
+
 const EXAM_IDS = ["ent", "ege", "ielts", "sat"];
 const ATTEMPTS_PER_USER_LIMIT = 500;
 
