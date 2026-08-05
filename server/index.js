@@ -441,6 +441,16 @@ app.get("/sitemap.xml", (req, res) => {
   res.type("application/xml").send(renderSitemap(getPublicAppUrl(req)));
 });
 
+// IndexNow ownership proof. Bing and Yandex fetch this file to confirm that
+// whoever submits URLs for this host controls it. Google does not use IndexNow —
+// its sitemap has to be submitted through Search Console.
+const INDEXNOW_KEY = String(process.env.INDEXNOW_KEY || "").trim();
+if (/^[a-f0-9]{8,128}$/i.test(INDEXNOW_KEY)) {
+  app.get(`/${INDEXNOW_KEY}.txt`, (req, res) => {
+    res.type("text/plain").send(INDEXNOW_KEY);
+  });
+}
+
 for (const [routePath, lang] of [["/", "ru"], ["/en", "en"]]) {
   app.get(routePath, (req, res) => {
     res.type("html").send(renderLanding(lang, getPublicAppUrl(req)));
