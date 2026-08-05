@@ -17,6 +17,7 @@ import {
   renderRobots,
   renderSitemap,
   EXAM_IDS as SEO_EXAM_IDS,
+  getExamBank,
 } from "./seo.js";
 import { initStore, loadStore, saveStore, storeStats } from "./store.js";
 
@@ -462,6 +463,73 @@ app.get(authRoutes, (req, res) => {
 
 app.get(dashboardRoutes, (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
+});
+
+// --- public demo test (no account required) ---
+// A short, freshly shuffled set of questions so a visitor can try the trainer
+// before deciding to sign up. Answers travel with the questions because the
+// demo grades instantly in the browser; this is a sample, not an exam.
+const demoLimiter = rateLimit({ windowMs: 60 * 60_000, max: 120, scope: "demo" });
+
+app.get("/api/demo/:examId", demoLimiter, (req, res) => {
+  const examId = String(req.params.examId || "").trim();
+  const exam = SEO_EXAM_IDS.includes(examId) ? getExamBank(examId) : null;
+  if (!exam) return res.status(404).json({ error: "Unknown exam" });
+
+  const count = Math.min(20, Math.max(5, Number(req.query.n) || 10));
+  const wantedSection = String(req.query.section || "").trim();
+  const sectionTitles = Object.fromEntries(exam.sections.map((s) => [s.id, s.title]));
+
+  // Passage-based items need their reading text or recording to make sense —
+  // the demo keeps to self-contained questions so it stays short.
+  let pool = exam.questions.filter((q) => !q.passageId && q.explanation && q.explanation.length > 30);
+  if (wantedSection) pool = pool.filter((q) => q.sectionId === wantedSection);
+  if (!pool.length) return res.status(404).json({ error: "No demo questions available" });
+
+  const picked = [];
+  const used = new Set();
+  // Spread the sample across sections so a variant is not all one subject.
+  const bySection = new Map();
+  for (const q of pool) {
+    if (!bySection.has(q.sectionId)) bySection.set(q.sectionId, []);
+    bySection.get(q.sectionId).push(q);
+  }
+  const buckets = [...bySection.values()].map((list) => list.slice().sort(() => Math.random() - 0.5));
+  let round = 0;
+  while (picked.length < count && round < 60) {
+    for (const bucket of buckets) {
+      if (picked.length >= count) break;
+      const candidate = bucket[round];
+      if (candidate && !used.has(candidate.id)) {
+        used.add(candidate.id);
+        picked.push(candidate);
+      }
+    }
+    round += 1;
+  }
+
+  res.set("Cache-Control", "no-store");
+  res.json({
+    examId,
+    title: exam.title,
+    sections: exam.sections.filter((s) => s.kind !== "writing" && s.kind !== "speaking")
+      .map((s) => ({ id: s.id, title: s.title })),
+    total: exam.questions.length,
+    questions: picked.map((q) => ({
+      id: q.id,
+      sectionId: q.sectionId,
+      sectionTitle: sectionTitles[q.sectionId] || null,
+      topic: q.topic || "",
+      difficulty: q.difficulty || "medium",
+      type: q.type || "mcq",
+      text: q.text,
+      choices: q.choices || null,
+      correctIndex: q.correctIndex ?? null,
+      correctIndices: q.correctIndices || null,
+      answers: q.answers || null,
+      explanation: q.explanation,
+    })),
+  });
 });
 
 app.get("/api/health", (req, res) => {

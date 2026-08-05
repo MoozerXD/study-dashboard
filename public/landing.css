@@ -39,6 +39,9 @@
 }
 
 *{box-sizing:border-box}
+/* Class selectors below (.btn) outrank the browser's [hidden] rule, so the
+   auth-state swap in the header would leave both variants visible. */
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{
   margin:0;
@@ -89,7 +92,7 @@ img{max-width:100%}
   font-size:14.5px;
 }
 .site-nav a:hover{color:var(--text)}
-.site-actions{display:flex;align-items:center;gap:9px}
+.site-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .lang-switch{
   padding:7px 11px;
   border:1px solid var(--line);
@@ -358,12 +361,219 @@ th{background:var(--card-3);font-weight:700}
 }
 
 @media (max-width:760px){
+  .site-header{gap:12px;padding:14px 18px}
   .site-nav{order:3;flex-basis:100%;gap:12px}
+  /* The three header buttons do not fit next to the brand on a phone. */
+  .site-actions{margin-left:auto}
+  .site-actions .btn{padding:8px 14px;font-size:13.5px}
+  .site-actions .btn.ghost{display:none}
   .exam-hero{padding-left:16px}
   .hero-stats{grid-template-columns:repeat(2,1fr);min-width:0;width:100%}
   .footer-cols{grid-template-columns:1fr}
+  main{padding:0 18px 48px}
 }
+
+/* Nothing on these pages may push the document sideways. */
+body{overflow-x:hidden}
 
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;scroll-behavior:auto!important}
+}
+
+/* ====================== public demo test ====================== */
+.demo-widget{
+  border:1px solid var(--line);
+  border-left:4px solid var(--accent);
+  border-radius:var(--radius-lg);
+  background:linear-gradient(160deg,var(--card),var(--card-2));
+  padding:26px;
+  box-shadow:var(--shadow);
+}
+
+.demo-start{display:grid;gap:12px;justify-items:start}
+.demo-badge{
+  padding:5px 13px;
+  border-radius:var(--radius-pill);
+  background:rgba(61,123,255,.14);
+  border:1px solid var(--line-strong);
+  font-size:13px;
+  font-weight:700;
+}
+.demo-start h3{margin:0;font-size:24px}
+.demo-start p{margin:0;color:var(--muted);max-width:560px}
+.demo-start small{color:var(--muted-2);font-size:13px}
+.demo-section-pick{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);flex-wrap:wrap}
+.demo-section-pick select{
+  padding:9px 13px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  color:var(--text);
+  font-size:14px;
+  font-family:inherit;
+}
+
+.demo-loading{display:grid;gap:14px;justify-items:center;padding:44px 10px;color:var(--muted)}
+.demo-spinner{
+  width:40px;height:40px;
+  border-radius:50%;
+  border:4px solid var(--card-3);
+  border-top-color:var(--accent);
+  animation:demo-spin .9s linear infinite;
+}
+@keyframes demo-spin{to{transform:rotate(360deg)}}
+
+.demo-topbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+.demo-counter{font-weight:700;font-size:14px;color:var(--muted)}
+.demo-pill{
+  padding:3px 11px;
+  border-radius:var(--radius-pill);
+  background:rgba(61,123,255,.15);
+  border:1px solid var(--line-strong);
+  font-size:12px;
+  font-weight:600;
+}
+.demo-pill.soft{background:var(--card-3);border-color:var(--line);color:var(--muted);font-weight:500}
+.demo-progress{height:5px;border-radius:999px;background:var(--card-3);overflow:hidden;margin-bottom:18px}
+.demo-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--cyan));transition:width .3s ease}
+
+.demo-question{font-size:18px;line-height:1.6;margin:0 0 16px}
+.demo-hint{margin:0 0 10px;color:var(--muted);font-size:13px}
+.demo-choices{display:grid;gap:9px;margin-bottom:14px}
+.demo-choice{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  width:100%;
+  text-align:left;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  color:var(--text);
+  font-size:15px;
+  line-height:1.5;
+  font-family:inherit;
+  cursor:pointer;
+  transition:border-color .13s ease,background .13s ease,transform .13s ease;
+}
+.demo-choice:hover:not(:disabled){border-color:var(--line-strong);background:var(--card-2);transform:translateX(2px)}
+.demo-choice:disabled{cursor:default}
+.demo-choice.picked{border-color:var(--accent);background:rgba(61,123,255,.12)}
+.demo-choice.correct{border-color:var(--green);background:rgba(54,214,159,.13)}
+.demo-choice.wrong{border-color:#ff5574;background:rgba(255,85,116,.11)}
+.demo-letter{
+  flex:0 0 27px;height:27px;
+  display:grid;place-items:center;
+  border-radius:8px;
+  background:var(--card-3);
+  border:1px solid var(--line);
+  font-weight:700;font-size:13px;
+}
+.demo-choice.picked .demo-letter{background:var(--accent);border-color:var(--accent);color:#04101f}
+.demo-choice.correct .demo-letter{background:var(--green);border-color:var(--green);color:#04140d}
+.demo-choice.wrong .demo-letter{background:#ff5574;border-color:#ff5574;color:#fff}
+
+.demo-input{
+  width:min(320px,100%);
+  padding:13px 15px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--card);
+  color:var(--text);
+  font-size:16px;
+  font-family:inherit;
+  margin-bottom:12px;
+}
+.demo-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,123,255,.35)}
+
+.demo-feedback{
+  padding:15px 17px;
+  border-radius:var(--radius);
+  border:1px solid var(--line);
+  margin-bottom:16px;
+  font-size:14.5px;
+  line-height:1.6;
+  animation:demo-fade .25s ease;
+}
+@keyframes demo-fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.demo-feedback.ok{border-color:rgba(54,214,159,.5);background:rgba(54,214,159,.09)}
+.demo-feedback.bad{border-color:rgba(255,85,116,.5);background:rgba(255,85,116,.08)}
+.demo-feedback strong{display:block;margin-bottom:6px}
+.demo-feedback p{margin:0;color:var(--muted)}
+.demo-next{width:100%}
+
+.demo-result-head{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-bottom:18px}
+.demo-result-head h3{margin:0 0 4px;font-size:26px}
+.demo-result-head p{margin:0 0 4px;color:var(--muted)}
+.demo-result-head small{color:var(--muted-2);font-size:13px}
+.demo-ring{
+  --size:118px;
+  width:var(--size);height:var(--size);
+  flex:0 0 var(--size);
+  border-radius:50%;
+  background:conic-gradient(var(--accent) calc(var(--pct)*1%),var(--card-3) 0);
+  display:grid;place-items:center;
+}
+.demo-ring span{
+  width:calc(var(--size) - 22px);height:calc(var(--size) - 22px);
+  border-radius:50%;
+  background:var(--card);
+  display:grid;place-items:center;
+  font-weight:800;font-size:26px;
+}
+.demo-weak{margin-bottom:18px}
+.demo-weak strong{display:block;margin-bottom:8px;font-size:14.5px}
+.demo-weak-list{display:flex;flex-wrap:wrap;gap:7px}
+
+.demo-cta{
+  padding:20px;
+  border:1px solid var(--line-strong);
+  border-radius:var(--radius);
+  background:linear-gradient(150deg,rgba(61,123,255,.14),rgba(73,226,197,.09));
+}
+.demo-cta p{margin:0 0 14px;color:var(--text);font-size:15px}
+.demo-cta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+.demo-toast{
+  position:fixed;
+  left:50%;bottom:24px;
+  transform:translateX(-50%) translateY(14px);
+  z-index:90;
+  padding:12px 18px;
+  border-radius:var(--radius);
+  border:1px solid var(--line-strong);
+  background:#0d1730;
+  color:#fff;
+  font-size:14px;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease,transform .2s ease;
+}
+.demo-toast.visible{opacity:1;transform:translateX(-50%)}
+
+/* landing: quick links into each exam demo */
+.demo-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.demo-link{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:var(--radius);
+  background:var(--card);
+  text-decoration:none;
+  font-weight:600;
+  transition:transform .15s ease,border-color .15s ease;
+}
+.demo-link:hover{transform:translateY(-2px);border-color:var(--accent)}
+.demo-link .flag{font-size:22px}
+.demo-link small{display:block;color:var(--muted);font-weight:400;font-size:12.5px}
+
+@media (max-width:640px){
+  .demo-widget{padding:18px}
+  .demo-result-head{gap:16px}
+  .demo-ring{--size:92px}
+  .demo-cta-row .btn{width:100%;text-align:center}
 }

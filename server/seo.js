@@ -34,6 +34,11 @@ export function clearSeoCache() {
   cache.pages.clear();
 }
 
+// Shared with the demo endpoint so the banks are parsed once, not per request.
+export function getExamBank(examId) {
+  return loadExams()[examId] || null;
+}
+
 /* -------------------------------------------------------------- helpers --- */
 
 export function escapeHtml(value) {
@@ -310,7 +315,8 @@ function layout({ lang, title, description, canonical, path: urlPath, jsonLd, bo
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/landing.css?v=1">
+  <link rel="stylesheet" href="/landing.css?v=4">
+  <script defer src="/demo.js?v=1"></script>
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 </head>
 <body>
@@ -511,7 +517,7 @@ export function renderExamPage(examId, lang, appUrl) {
         <h1>${escapeHtml(pick(meta.heading, lang))}</h1>
         <p>${escapeHtml(pick(meta.lede, lang))}</p>
         <div class="hero-actions">
-          <a class="btn primary lg" href="/register">${t(lang, "Пройти пробный тест", "Take a practice test")}</a>
+          <a class="btn primary lg" href="#demo">${t(lang, "Пройти демо-тест бесплатно", "Try the free demo test")}</a>
           <a class="btn ghost lg" href="#materials">${t(lang, "Материалы по подготовке", "Prep materials")}</a>
         </div>
       </div>
@@ -521,6 +527,14 @@ export function renderExamPage(examId, lang, appUrl) {
         ${stats.writingTasks ? `<div><dt>${t(lang, "Заданий с проверкой ИИ", "AI-graded tasks")}</dt><dd>${stats.writingTasks}</dd></div>` : ""}
         <div><dt>${t(lang, "Стоимость", "Price")}</dt><dd>${t(lang, "Бесплатно", "Free")}</dd></div>
       </dl>
+    </section>
+
+    <section class="block" id="demo">
+      <h2>${t(lang, "Демо-тест без регистрации", "Demo test — no sign-up")}</h2>
+      <p class="block-lede">${t(lang,
+        "Десять вопросов из настоящего банка с мгновенным разбором. Каждый запуск — новый вариант.",
+        "Ten questions from the real bank with instant explanations. Every run is a new variant.")}</p>
+      <div data-demo="${escapeHtml(examId)}"></div>
     </section>
 
     <section class="block">
@@ -704,9 +718,29 @@ export function renderLanding(lang, appUrl) {
           `${totalQuestions} заданий с объяснением к каждому, пробные тесты в формате настоящего экзамена и проверка сочинений и устной речи искусственным интеллектом.`,
           `${totalQuestions} questions with an explanation for every one, mock tests in the real exam format, and AI grading for essays and speaking.`)}</p>
         <div class="hero-actions">
-          <a class="btn primary lg" href="/register">${t(lang, "Начать бесплатно", "Start free")}</a>
-          <a class="btn ghost lg" href="#exams">${t(lang, "Выбрать экзамен", "Choose an exam")}</a>
+          <a class="btn primary lg" href="#try">${t(lang, "Попробовать без регистрации", "Try it without signing up")}</a>
+          <a class="btn ghost lg" href="/register">${t(lang, "Создать аккаунт", "Create an account")}</a>
         </div>
+      </div>
+    </section>
+
+    <section class="block" id="try">
+      <h2>${t(lang, "Попробуй прямо сейчас — регистрация не нужна", "Try it right now — no sign-up needed")}</h2>
+      <p class="block-lede">${t(lang,
+        "Выбери экзамен и пройди демо-тест из 10 вопросов с разбором каждого ответа.",
+        "Pick an exam and take a 10-question demo test with an explanation for every answer.")}</p>
+      <div class="demo-links">
+        ${EXAM_IDS.map((id) => {
+          const meta = EXAM_META[id];
+          const exam = exams[id];
+          if (!exam) return "";
+          return `<a class="demo-link" href="${lang === "en" ? "/en" : ""}/${id}#demo" style="--accent:${meta.accent}">
+            <span class="flag">${meta.flag}</span>
+            <span>${escapeHtml(pick(meta.name, lang))}
+              <small>${exam.questions.length} ${plural(exam.questions.length, QUESTIONS, lang)}</small>
+            </span>
+          </a>`;
+        }).join("")}
       </div>
     </section>
 
