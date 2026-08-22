@@ -471,8 +471,19 @@ app.get(authRoutes, (req, res) => {
   res.sendFile(path.join(publicDir, "auth.html"));
 });
 
+// Desmos wants a per-site API key in production; the client falls back to the
+// public demo key when this is empty. Stamped onto <html> as a data attribute.
+const DESMOS_API_KEY = String(process.env.DESMOS_API_KEY || "").trim().replace(/[^a-z0-9]/gi, "");
+let appShellCache = null;
+
 app.get(dashboardRoutes, (req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
+  if (!appShellCache) {
+    const shell = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
+    appShellCache = DESMOS_API_KEY
+      ? shell.replace('<html lang="ru">', `<html lang="ru" data-desmos-key="${DESMOS_API_KEY}">`)
+      : shell;
+  }
+  res.type("html").send(appShellCache);
 });
 
 // --- public demo test (no account required) ---

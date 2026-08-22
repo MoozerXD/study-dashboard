@@ -907,6 +907,7 @@
     if (!runner) { toast(t("Недостаточно вопросов для теста", "Not enough questions for a test")); return; }
     ex.runner = runner;
     document.body.classList.add("exam-running");
+    ensureCalculatorPanel();
     renderRunner();
     if (!runner.practice) {
       runner.timerId = setInterval(() => {
@@ -942,6 +943,8 @@
 
   function stopRunner() {
     stopAudio();
+    closeCalculator();
+    document.getElementById("examCalculator")?.remove();
     if (ex.runner?.timerId) clearInterval(ex.runner.timerId);
     ex.runner = null;
     document.body.classList.remove("exam-running");
@@ -978,6 +981,7 @@
     const runner = ex.runner;
     if (!runner) return;
     stopAudio();
+    closeCalculator();
     if (runner.sectionIndex < runner.sections.length - 1) {
       runner.sectionIndex += 1;
       runner.questionIndex = 0;
@@ -1062,6 +1066,82 @@
     return lines;
   }
 
+  /* ---------- Desmos graphing calculator (Digital SAT allows it in Math) ---------- */
+  const desmos = { loading: null, instance: null, open: false };
+
+  function calculatorAllowed(runner) {
+    const section = runner?.sections?.[runner.sectionIndex];
+    return runner?.exam?.examId === "sat" && section?.meta?.id === "math";
+  }
+
+  function loadDesmos() {
+    if (window.Desmos) return Promise.resolve();
+    if (desmos.loading) return desmos.loading;
+    // The key is stamped into the page by the server from DESMOS_API_KEY;
+    // without one the public demo key keeps the calculator working in development.
+    const key = document.documentElement.dataset.desmosKey || "dcb31709b452b1cf9dc26972add0fda6";
+    desmos.loading = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `https://www.desmos.com/api/v1.10/calculator.js?apiKey=${encodeURIComponent(key)}`;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => { desmos.loading = null; reject(new Error("Desmos failed to load")); };
+      document.head.appendChild(script);
+    });
+    return desmos.loading;
+  }
+
+  async function toggleCalculator() {
+    if (desmos.open) { closeCalculator(); return; }
+    const panel = document.getElementById("examCalculator");
+    if (!panel) return;
+    panel.hidden = false;
+    desmos.open = true;
+    updateCalculatorButton();
+    const host = panel.querySelector(".exam-calculator-host");
+    host.innerHTML = `<div class="exam-calculator-loading">${t("Загружаем калькулятор…", "Loading the calculator…")}</div>`;
+    try {
+      await loadDesmos();
+      if (!desmos.open) return; // closed while loading
+      host.innerHTML = "";
+      desmos.instance = window.Desmos.GraphingCalculator(host, {
+        keypad: true,
+        expressions: true,
+        settingsMenu: false,
+        zoomButtons: true,
+        expressionsTopbar: true,
+        border: false,
+      });
+    } catch {
+      host.innerHTML = `<div class="exam-calculator-loading">${t("Калькулятор недоступен — проверь соединение.", "Calculator unavailable — check your connection.")}</div>`;
+    }
+  }
+
+  function closeCalculator() {
+    desmos.open = false;
+    if (desmos.instance) { try { desmos.instance.destroy(); } catch {} desmos.instance = null; }
+    const panel = document.getElementById("examCalculator");
+    if (panel) { panel.hidden = true; panel.querySelector(".exam-calculator-host").innerHTML = ""; }
+    updateCalculatorButton();
+  }
+
+  function updateCalculatorButton() {
+    const button = document.querySelector("[data-action='exam-calculator']");
+    if (button) button.classList.toggle("on", desmos.open);
+  }
+
+  function renderCalculatorPanel() {
+    return `
+      <aside class="exam-calculator" id="examCalculator" hidden aria-label="${t("Графический калькулятор", "Graphing calculator")}">
+        <div class="exam-calculator-head">
+          <strong>${t("Калькулятор", "Calculator")}</strong>
+          <span>${t("как на цифровом SAT", "as on the Digital SAT")}</span>
+          <button class="icon-button" data-action="exam-calculator-close" type="button" aria-label="${t("Закрыть", "Close")}"><svg><use href="#i-x"></use></svg></button>
+        </div>
+        <div class="exam-calculator-host"></div>
+      </aside>`;
+  }
+
   /* ---------- runner rendering ---------- */
   function ensureOverlay() {
     let overlay = document.getElementById("examRunnerOverlay");
@@ -1072,6 +1152,15 @@
       document.body.appendChild(overlay);
     }
     return overlay;
+  }
+
+  // The runner re-renders its whole markup on every answer; the calculator lives
+  // in a sibling element so an open graph is not wiped by the next click.
+  function ensureCalculatorPanel() {
+    if (document.getElementById("examCalculator")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = renderCalculatorPanel();
+    document.body.appendChild(wrap.firstElementChild);
   }
 
   function renderRunner() {
@@ -1167,6 +1256,7 @@
             <strong>${esc(pick(runner.exam.title))}</strong>
             <span>${esc(pick(section.meta.title))}${runner.topic ? ` · ${esc(runner.topic)}` : ""}</span>
           </div>
+          ${calculatorAllowed(runner) ? `<button class="exam-calc-btn ${desmos.open ? "on" : ""}" data-action="exam-calculator" type="button" title="${t("Графический калькулятор", "Graphing calculator")}">🧮 <span>${t("Калькулятор", "Calculator")}</span></button>` : ""}
           ${runner.practice ? `<span class="exam-progress-label">${index + 1} / ${count}</span>` : `<span class="exam-timer" id="examTimer">${timerText(left)}</span>`}
           <button class="icon-button" data-action="exam-exit" type="button" aria-label="${t("Выйти", "Exit")}"><svg><use href="#i-x"></use></svg></button>
         </header>
@@ -1782,6 +1872,8 @@
       return;
     }
     if (action === "exam-stop-audio") { stopAudio(); return; }
+    if (action === "exam-calculator") { toggleCalculator(); return; }
+    if (action === "exam-calculator-close") { closeCalculator(); return; }
     if (action === "exam-multi-toggle") {
       const question = currentQuestion();
       const answer = answerFor(question.id);
