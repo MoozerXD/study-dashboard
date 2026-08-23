@@ -186,10 +186,36 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(q);
     }
+    // IELTS Listening runs Part 1 → 4 in order of difficulty, so for a full
+    // sitting pick one recording per part and keep that order. Other
+    // passage-based sections just take whole passages at random.
+    const partOf = (group) => {
+      const passage = (exam.passages || []).find((x) => x.id === group[0]?.passageId);
+      const match = /Part\s*(\d)/i.exec(passage?.title || "");
+      return match ? Number(match[1]) : null;
+    };
+    let ordered = shuffle([...groups.values()]);
+    // Only recordings carry a part number; stray passage-less questions must not
+    // disable the ordering for the whole section.
+    const recordings = ordered.filter((g) => g[0]?.passageId);
+    if (sectionId === "listening" && recordings.length && recordings.every((g) => partOf(g))) {
+      ordered = recordings;
+      const byPart = new Map();
+      for (const group of ordered) {
+        const part = partOf(group);
+        if (!byPart.has(part)) byPart.set(part, group); // first after shuffle = random pick per part
+      }
+      ordered = [...byPart.keys()].sort((a, b) => a - b).map((part) => byPart.get(part));
+    }
+    // Take whole passages: a reading text with a single orphan question is
+    // worse than slightly fewer questions. Only the last group is ever trimmed,
+    // and only when it would otherwise contribute less than half its questions.
     const picked = [];
-    for (const group of shuffle([...groups.values()])) {
+    for (const group of ordered) {
       if (picked.length >= count) break;
-      picked.push(...group.slice(0, count - picked.length));
+      const room = count - picked.length;
+      if (room < group.length && room < Math.ceil(group.length / 2)) break;
+      picked.push(...group.slice(0, room));
     }
     return picked;
   }
