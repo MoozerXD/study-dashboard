@@ -3471,8 +3471,15 @@ h1,h2,h3{letter-spacing:-.015em}
 }
 .nav-link:not(.active):hover{background:var(--card-2)}
 
-/* exam catalog: flag sits in a tinted badge */
-.exam-flag{
+/* Exam catalog: the country-flag emoji sits in a tinted badge.
+   Scoped to catalog contexts only — the runner reuses .exam-flag for its
+   flag-this-question pill button, and the unscoped rule broke that button
+   into a 44px square with the label spilling out. */
+.exam-card-head .exam-flag,
+.exam-dash-row .exam-flag{
+  margin:0;
+  padding:0;
+  color:inherit;
   display:inline-grid;
   place-items:center;
   width:44px;height:44px;
