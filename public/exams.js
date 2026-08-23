@@ -1093,7 +1093,7 @@
   }
 
   /* ---------- Desmos graphing calculator (Digital SAT allows it in Math) ---------- */
-  const desmos = { loading: null, instance: null, open: false };
+  const desmos = { loading: null, instance: null, open: false, pos: null };
 
   function calculatorAllowed(runner) {
     const section = runner?.sections?.[runner.sectionIndex];
@@ -1186,7 +1186,61 @@
     if (document.getElementById("examCalculator")) return;
     const wrap = document.createElement("div");
     wrap.innerHTML = renderCalculatorPanel();
-    document.body.appendChild(wrap.firstElementChild);
+    const panel = wrap.firstElementChild;
+    document.body.appendChild(panel);
+    if (desmos.pos) {
+      panel.style.left = desmos.pos.left;
+      panel.style.top = desmos.pos.top;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      clampCalculatorIntoView(panel);
+    }
+    makeCalculatorDraggable(panel);
+  }
+
+  function clampCalculatorIntoView(panel) {
+    const rect = panel.getBoundingClientRect();
+    const x = Math.min(Math.max(rect.left, 60 - rect.width), window.innerWidth - 60);
+    const y = Math.min(Math.max(rect.top, 0), Math.max(0, window.innerHeight - 48));
+    panel.style.left = x + "px";
+    panel.style.top = y + "px";
+  }
+
+  // Drag by the header bar; phones keep the fixed bottom-sheet layout.
+  function makeCalculatorDraggable(panel) {
+    const head = panel.querySelector(".exam-calculator-head");
+    head.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button")) return;
+      if (window.matchMedia("(max-width: 640px)").matches) return;
+      const rect = panel.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      // switch to left/top so dragging and the CSS resize handle agree
+      panel.style.left = rect.left + "px";
+      panel.style.top = rect.top + "px";
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      panel.classList.add("dragging");
+      document.body.style.userSelect = "none";
+      const move = (e) => {
+        const x = Math.min(Math.max(e.clientX - offsetX, 60 - panel.offsetWidth), window.innerWidth - 60);
+        const y = Math.min(Math.max(e.clientY - offsetY, 0), Math.max(0, window.innerHeight - 48));
+        panel.style.left = x + "px";
+        panel.style.top = y + "px";
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        panel.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        desmos.pos = { left: panel.style.left, top: panel.style.top };
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+      event.preventDefault();
+    });
   }
 
   function renderRunner() {

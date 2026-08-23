@@ -3537,3 +3537,8 @@ h1,h2,h3{letter-spacing:-.015em}
   .hero-card::after{animation:none}
   .exam-dot.current,.exam-feedback,.exam-result-ring{animation:none}
 }
+
+/* -------- calculator dragging -------- */
+.exam-calculator-head{touch-action:none;user-select:none}
+.exam-calculator.dragging{transition:none;opacity:.94;box-shadow:0 24px 60px -18px rgba(0,0,0,.7)}
+.exam-calculator.dragging iframe,.exam-calculator.dragging .exam-calculator-host{pointer-events:none}
