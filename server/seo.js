@@ -318,8 +318,21 @@ function layout({ lang, title, description, canonical, path: urlPath, jsonLd, bo
   <link rel="stylesheet" href="/landing.css?v=5">
   <script defer src="/demo.js?v=1"></script>
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+  <!-- Yandex.Metrika counter -->
+  <script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=113663766', 'ym');
+
+    ym(113663766, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+  </script>
+  <!-- /Yandex.Metrika counter -->
 </head>
 <body>
+  <noscript><div><img src="https://mc.yandex.ru/watch/113663766" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
   <header class="site-header">
     <a class="brand" href="${lang === "en" ? "/en" : "/"}">
       <span class="brand-mark" aria-hidden="true">✦</span>

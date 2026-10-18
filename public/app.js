@@ -2195,9 +2195,18 @@ function setActiveRoute(route, options = {}) {
     window.StudyExams?.onEnter();
   }
   if (options.push !== false && window.location.pathname !== routes[nextRoute]) {
+    const previousUrl = window.location.href;
     window.history.pushState({ route: nextRoute }, "", routes[nextRoute]);
+    trackPageView(previousUrl);
   }
   setSidebarOpen(false);
+}
+
+// SPA navigation doesn't reload the page, so Yandex.Metrika needs an explicit hit
+function trackPageView(referer) {
+  if (typeof window.ym === "function") {
+    window.ym(113663766, "hit", window.location.href, { title: document.title, referer });
+  }
 }
 
 function setSidebarOpen(open) {
@@ -2260,7 +2269,10 @@ function bindEvents() {
   document.querySelectorAll(".nav-link").forEach((button) => {
     button.addEventListener("click", () => setActiveRoute(button.dataset.route));
   });
-  window.addEventListener("popstate", () => setActiveRoute(getRouteFromPath(), { push: false }));
+  window.addEventListener("popstate", () => {
+    setActiveRoute(getRouteFromPath(), { push: false });
+    trackPageView();
+  });
 
   document.getElementById("sidebarToggleBtn")?.addEventListener("click", () => setSidebarOpen(!document.body.classList.contains("menu-open")));
   document.getElementById("sidebarCloseBtn")?.addEventListener("click", () => setSidebarOpen(false));
